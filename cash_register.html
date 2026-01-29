@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cash Register Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Fredoka', sans-serif;
+            background-color: #f3f4f6;
+            user-select: none;
+        }
+        .money-btn {
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+        .money-btn:active {
+            transform: scale(0.95);
+        }
+        .bill {
+            width: 120px;
+            height: 55px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.1rem;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.1);
+            cursor: pointer;
+        }
+        .coin {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.8rem;
+            box-shadow: 0 3px 0 rgba(0,0,0,0.1);
+            cursor: pointer;
+        }
+        #home-link {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            text-decoration: none;
+            background: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            color: #333;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            font-weight: bold;
+            z-index: 100;
+        }
+        .success-animation {
+            animation: bounce 0.5s ease infinite alternate;
+        }
+        @keyframes bounce {
+            from { transform: translateY(0); }
+            to { transform: translateY(-10px); }
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center min-h-screen p-4">
+
+    <a href="https://mlyard.github.io/auroras_playground/home.html" id="home-link">🏠 Home</a>
+
+    <!-- Top Display -->
+    <div class="mt-16 w-full max-w-2xl bg-white rounded-3xl p-6 shadow-xl border-4 border-blue-200">
+        <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="text-center md:text-left">
+                <h1 class="text-2xl font-bold text-gray-800">The Register</h1>
+                <p class="text-gray-500">Provide the correct change!</p>
+            </div>
+            <div id="display" class="bg-gray-900 text-green-400 font-mono p-4 rounded-lg text-2xl border-4 border-gray-700 w-full md:w-auto text-center">
+                <div class="text-xs uppercase text-green-700">Total Price</div>
+                <div id="total-price">$0.00</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Transaction Info -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl mt-6">
+        <div class="bg-blue-50 rounded-2xl p-6 border-2 border-blue-100 flex flex-col items-center justify-center">
+            <span class="text-lg font-semibold text-blue-800 mb-2">Customer Paid:</span>
+            <div id="customer-note" class="bill bg-green-200 border-2 border-green-600 text-green-800 shadow-lg scale-125 mb-4">
+                $100
+            </div>
+            <p class="text-sm text-blue-600 text-center">Give them the exact change back from the till.</p>
+        </div>
+
+        <div class="bg-white rounded-2xl p-6 border-2 border-gray-100 shadow-inner flex flex-col">
+            <div class="flex justify-between items-center mb-4">
+                <span class="font-bold text-gray-700">Your Change Tray:</span>
+                <span id="current-change-total" class="text-xl font-bold text-blue-600">$0.00</span>
+            </div>
+            <div id="change-tray" class="flex flex-wrap gap-2 min-h-[100px] items-start content-start">
+                <!-- Change items go here -->
+                <p id="empty-tray-msg" class="text-gray-300 italic w-full text-center mt-4">Empty...</p>
+            </div>
+            <div class="flex gap-2 mt-4">
+                <button onclick="clearChange()" class="flex-1 bg-gray-200 hover:bg-gray-300 py-3 rounded-xl font-bold transition">Clear All</button>
+                <button onclick="submitChange()" id="submit-btn" class="flex-[2] bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold shadow-lg transition">Hand Over Change</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- The Cash Drawer (Till) -->
+    <div class="w-full max-w-5xl mt-8 bg-zinc-800 p-6 rounded-t-[40px] shadow-2xl">
+        <h2 class="text-center text-zinc-400 uppercase tracking-widest text-sm mb-6 font-bold">Cash Drawer</h2>
+        
+        <div class="flex flex-col gap-8">
+            <!-- Bills Row -->
+            <div class="flex flex-wrap justify-center gap-4">
+                <div onclick="addMoney(100)" class="money-btn bill bg-green-800 border-2 border-green-400 text-green-100">$100</div>
+                <div onclick="addMoney(50)" class="money-btn bill bg-green-700 border-2 border-green-300 text-green-50">$50</div>
+                <div onclick="addMoney(20)" class="money-btn bill bg-green-600 border-2 border-green-200 text-green-50">$20</div>
+                <div onclick="addMoney(10)" class="money-btn bill bg-green-500 border-2 border-green-100 text-white">$10</div>
+                <div onclick="addMoney(5)" class="money-btn bill bg-green-400 border-2 border-green-50 text-white">$5</div>
+                <div onclick="addMoney(1)" class="money-btn bill bg-green-300 border-2 border-green-50 text-green-900">$1</div>
+            </div>
+
+            <!-- Coins Row -->
+            <div class="flex flex-wrap justify-center gap-6">
+                <div onclick="addMoney(0.25)" class="money-btn coin bg-gray-300 border-2 border-gray-100 text-gray-700">25¢</div>
+                <div onclick="addMoney(0.10)" class="money-btn coin bg-gray-200 border-2 border-gray-50 text-gray-600">10¢</div>
+                <div onclick="addMoney(0.05)" class="money-btn coin bg-gray-300 border-2 border-gray-400 text-gray-700">5¢</div>
+                <div onclick="addMoney(0.01)" class="money-btn coin bg-orange-300 border-2 border-orange-200 text-orange-800">1¢</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-[200] p-4">
+        <div class="bg-white rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl">
+            <div id="modal-icon" class="text-6xl mb-4">🎉</div>
+            <h2 id="modal-title" class="text-3xl font-bold mb-2">Great Job!</h2>
+            <p id="modal-text" class="text-gray-600 mb-6">You gave back the exact change.</p>
+            <button onclick="nextCustomer()" class="w-full bg-green-500 hover:bg-green-600 text-white py-4 rounded-2xl text-xl font-bold shadow-lg transition">Next Customer</button>
+        </div>
+    </div>
+
+    <script>
+        let targetTotalPrice = 0;
+        let amountPaid = 0;
+        let currentChangeSum = 0;
+        let changeItems = [];
+
+        const currencyFormatter = new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD',
+        });
+
+        function initGame() {
+            // Generate a random total price between $1.00 and $95.00
+            targetTotalPrice = (Math.random() * 94 + 1).toFixed(2);
+            targetTotalPrice = parseFloat(targetTotalPrice);
+
+            // Determine what note the customer hands over
+            const notes = [1, 5, 10, 20, 50, 100];
+            amountPaid = notes.find(n => n > targetTotalPrice);
+            
+            // UI Updates
+            document.getElementById('total-price').textContent = currencyFormatter.format(targetTotalPrice);
+            document.getElementById('customer-note').textContent = currencyFormatter.format(amountPaid);
+            
+            clearChange();
+        }
+
+        function addMoney(value) {
+            changeItems.push(value);
+            updateTray();
+            playClickSound();
+        }
+
+        function updateTray() {
+            const tray = document.getElementById('change-tray');
+            const emptyMsg = document.getElementById('empty-tray-msg');
+            const totalDisplay = document.getElementById('current-change-total');
+
+            currentChangeSum = changeItems.reduce((a, b) => a + b, 0);
+            totalDisplay.textContent = currencyFormatter.format(currentChangeSum);
+
+            if (changeItems.length > 0) {
+                emptyMsg.classList.add('hidden');
+                tray.innerHTML = '';
+                // Render mini versions of the money
+                changeItems.forEach((val, index) => {
+                    const item = document.createElement('div');
+                    if (val >= 1) {
+                        item.className = 'text-[10px] px-2 py-1 bg-green-100 border border-green-400 rounded text-green-700 font-bold cursor-pointer hover:bg-red-100 hover:border-red-400';
+                        item.textContent = `$${val}`;
+                    } else {
+                        item.className = 'text-[10px] w-6 h-6 flex items-center justify-center bg-gray-100 border border-gray-400 rounded-full text-gray-700 font-bold cursor-pointer hover:bg-red-100 hover:border-red-400';
+                        item.textContent = `${val * 100}¢`;
+                    }
+                    item.onclick = () => removeItem(index);
+                    tray.appendChild(item);
+                });
+            } else {
+                tray.innerHTML = '';
+                tray.appendChild(emptyMsg);
+                emptyMsg.classList.remove('hidden');
+            }
+        }
+
+        function removeItem(index) {
+            changeItems.splice(index, 1);
+            updateTray();
+        }
+
+        function clearChange() {
+            changeItems = [];
+            updateTray();
+        }
+
+        function submitChange() {
+            const targetChange = (amountPaid - targetTotalPrice).toFixed(2);
+            const userChange = currentChangeSum.toFixed(2);
+
+            if (parseFloat(userChange) === parseFloat(targetChange)) {
+                showModal(true);
+            } else {
+                shakeDisplay();
+                const diff = (parseFloat(userChange) - parseFloat(targetChange)).toFixed(2);
+                if (diff > 0) {
+                    showTemporaryMessage("That's too much change!", "#ef4444");
+                } else {
+                    showTemporaryMessage("That's not enough change yet.", "#f59e0b");
+                }
+            }
+        }
+
+        function showTemporaryMessage(msg, color) {
+            const display = document.getElementById('display');
+            const originalText = document.getElementById('total-price').textContent;
+            const originalLabel = display.querySelector('.text-xs').textContent;
+
+            display.style.borderColor = color;
+            document.getElementById('total-price').textContent = msg;
+            document.getElementById('total-price').className = "text-sm font-bold text-center py-2";
+
+            setTimeout(() => {
+                display.style.borderColor = "#374151";
+                document.getElementById('total-price').textContent = originalText;
+                document.getElementById('total-price').className = "text-2xl";
+            }, 2000);
+        }
+
+        function shakeDisplay() {
+            const display = document.getElementById('display');
+            display.classList.add('translate-x-1');
+            setTimeout(() => display.classList.remove('translate-x-1'), 100);
+        }
+
+        function showModal(success) {
+            const modal = document.getElementById('modal');
+            const title = document.getElementById('modal-title');
+            const text = document.getElementById('modal-text');
+            const icon = document.getElementById('modal-icon');
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            if (success) {
+                title.textContent = "Correct!";
+                text.textContent = `You gave back exactly ${currencyFormatter.format(amountPaid - targetTotalPrice)}. Well done!`;
+                icon.textContent = "💰";
+                icon.classList.add('success-animation');
+            }
+        }
+
+        function nextCustomer() {
+            const modal = document.getElementById('modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            document.getElementById('modal-icon').classList.remove('success-animation');
+            initGame();
+        }
+
+        function playClickSound() {
+            // Audio feedback using Oscillator
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(800, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(400, ctx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.1);
+            } catch (e) {}
+        }
+
+        window.onload = initGame;
+    </script>
+</body>
+</html>
