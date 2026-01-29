@@ -78,6 +78,8 @@
         const PEG_COUNT = 10;
         const PEG_SPACING = 3.5; // Distance between numbers
         const BEAM_WIDTH = (PEG_COUNT * PEG_SPACING * 2) + 4;
+        const BEAM_HEIGHT = 4.5; // Thicker beam
+        const PEG_Y_OFFSET = -1.5; // Pegs near bottom of thicker beam
         
         // --- Three.js Globals ---
         let scene, camera, renderer;
@@ -206,7 +208,7 @@
             scene.add(beamGroup);
 
             // Main Yellow Bar
-            const barGeo = new THREE.BoxGeometry(BEAM_WIDTH, 2.5, 1.5);
+            const barGeo = new THREE.BoxGeometry(BEAM_WIDTH, BEAM_HEIGHT, 1.5);
             const barMat = new THREE.MeshStandardMaterial({ color: 0xffeb3b, roughness: 0.3 });
             const bar = new THREE.Mesh(barGeo, barMat);
             bar.castShadow = true;
@@ -216,33 +218,32 @@
             // Create Number Texture for the beam
             const canvas = document.createElement('canvas');
             canvas.width = 1024;
-            canvas.height = 64;
+            canvas.height = 128; // Increased height for better text placement
             const ctx = canvas.getContext('2d');
             ctx.fillStyle = '#ffeb3b'; // Match beam color
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = 'black';
-            ctx.font = 'bold 30px Arial';
+            ctx.font = 'bold 45px Arial'; // Larger font
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
 
             // We need to map 10..1 | 1..10 across the width
-            // Map world coordinates to canvas coordinates
-            // Beam Width corresponds to canvas.width
             const centerX = canvas.width / 2;
             const pixelsPerUnit = canvas.width / BEAM_WIDTH;
+            const textY = canvas.height * 0.35; // Move text up (0 is top)
 
             for (let i = 1; i <= 10; i++) {
                 // Right side numbers
                 const rightX = centerX + (i * PEG_SPACING * pixelsPerUnit);
-                ctx.fillText(i.toString(), rightX, canvas.height/2);
+                ctx.fillText(i.toString(), rightX, textY);
 
                 // Left side numbers
                 const leftX = centerX - (i * PEG_SPACING * pixelsPerUnit);
-                ctx.fillText(i.toString(), leftX, canvas.height/2);
+                ctx.fillText(i.toString(), leftX, textY);
             }
 
             const texture = new THREE.CanvasTexture(canvas);
-            const labelGeo = new THREE.PlaneGeometry(BEAM_WIDTH, 2.5);
+            const labelGeo = new THREE.PlaneGeometry(BEAM_WIDTH, BEAM_HEIGHT);
             const labelMat = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
             const labelMesh = new THREE.Mesh(labelGeo, labelMat);
             labelMesh.position.z = 0.76; // Slightly in front of the box
@@ -256,13 +257,13 @@
             for (let i = 1; i <= 10; i++) {
                 // Right Peg
                 const pR = new THREE.Mesh(pegGeo, pegMat);
-                pR.position.set(i * PEG_SPACING, 0, 0.5);
+                pR.position.set(i * PEG_SPACING, PEG_Y_OFFSET, 0.5);
                 pR.castShadow = true;
                 beamGroup.add(pR);
 
                 // Left Peg
                 const pL = new THREE.Mesh(pegGeo, pegMat);
-                pL.position.set(-i * PEG_SPACING, 0, 0.5);
+                pL.position.set(-i * PEG_SPACING, PEG_Y_OFFSET, 0.5);
                 pL.castShadow = true;
                 beamGroup.add(pL);
             }
@@ -325,8 +326,6 @@
             raycaster.setFromCamera(mouse, camera);
             
             // Check intersection with weights
-            // Note: raycaster hits meshes, but our weights are Groups.
-            // We need to find the parent Group of the intersected mesh.
             const intersects = raycaster.intersectObjects(scene.children, true);
 
             for (let hit of intersects) {
@@ -364,14 +363,10 @@
             obj.rotation.set(0, 0, 0);
 
             // Calculate offset so we grab it where we clicked
-            // intersect point with drag plane
             raycaster.setFromCamera(mouse, camera);
             const planeIntersects = raycaster.intersectObject(dragPlane);
             
             if (planeIntersects.length > 0) {
-                // We want the object center to be offset from the mouse hit
-                // Actually, for this game, it feels better if the "hole" (origin) snaps to mouse
-                // So let's just snap origin to mouse for simplicity
                 dragOffset.set(0, 0, 0); 
             }
         }
@@ -402,14 +397,14 @@
 
         function dropWeight(obj) {
             // Check distance to all Peg positions
-            // We need world positions of pegs because the beam might be tilted
             
             let closestDist = 2.5; // Snap threshold
             let foundPeg = null; // { side, index, position }
 
             const checkPeg = (side, index) => {
                 const localX = (side === 'right' ? 1 : -1) * index * PEG_SPACING;
-                const localPos = new THREE.Vector3(localX, 0, 0); // Peg pos on beam
+                // Note: We check against the NEW peg Y position
+                const localPos = new THREE.Vector3(localX, PEG_Y_OFFSET, 0); 
                 
                 // Convert to world
                 const worldPos = localPos.clone().applyMatrix4(beamGroup.matrixWorld);
@@ -445,20 +440,12 @@
             const stackCount = arr[pegInfo.index];
 
             // 2. Visual Update
-            beamGroup.attach(obj); // Switch parent to beam so it rotates with it
+            beamGroup.attach(obj); 
             
             // Set position relative to peg
-            // We offset Y slightly down or forward based on count so they stack visible
-            // Standard toy behavior: they hang below each other or front-to-back
-            // Let's do Front-to-Back layering + slight vertical jitter
-            
-            obj.position.set(pegInfo.localX, -0.5, 0.5 + (stackCount * 0.6));
-            obj.rotation.set(0, 0, 0); // Hang straight relative to beam (which is tilted)
-             // Actually, real weights hang straight DOWN (gravity), not relative to beam.
-             // But Three.js hierarchy rotates children.
-             // To simulate gravity hanging, we'd need to counter-rotate every frame.
-             // For simplicity in this V1, let's let them rotate with the beam (rigid).
-             // It looks okay for small angles.
+            // We lower it (-2.0) because the peg is now lower (-1.5) and weight hangs below
+            obj.position.set(pegInfo.localX, PEG_Y_OFFSET - 0.5, 0.5 + (stackCount * 0.6));
+            obj.rotation.set(0, 0, 0);
 
             calculateBalance();
         }
@@ -478,7 +465,6 @@
             scene.attach(obj);
             
             // Simple animate back logic or instant
-            // Let's randomize a bit at bottom
             const x = (Math.random() - 0.5) * 40;
             const y = -12 - (Math.random() * 5);
             obj.position.set(x, y, 2 + Math.random());
@@ -491,8 +477,6 @@
             let leftTorque = 0;
             let rightTorque = 0;
 
-            // Iterate through weights to sum torque
-            // Or use occupancy arrays
             for(let i=1; i<=10; i++) {
                 leftTorque += pegOccupancy.left[i] * i;
                 rightTorque += pegOccupancy.right[i] * i;
@@ -510,16 +494,9 @@
             const tiltAmount = 0.35; // radians (approx 20 degrees)
 
             if (scaleState.leftTorque > scaleState.rightTorque) {
-                targetRotation = tiltAmount; // Positive Z is Left Down in this orientation?
-                // Standard: Right is +X. Left is -X.
-                // Rotate Z positive -> X goes up? No, Rotate Z + -> Left goes Up?
-                // Let's check Three.js Coord system.
-                // Right hand rule. Thumb Z (out). Fingers curl X to Y.
-                // +Rotation Z moves +X towards +Y. (Right side goes UP)
-                // So if Left is Heavy, Left goes DOWN, Right goes UP.
                 targetRotation = tiltAmount; 
             } else if (scaleState.rightTorque > scaleState.leftTorque) {
-                targetRotation = -tiltAmount; // Right goes DOWN
+                targetRotation = -tiltAmount; 
             } else {
                 targetRotation = 0;
             }
@@ -528,8 +505,6 @@
             beamGroup.rotation.z += (targetRotation - beamGroup.rotation.z) * 0.1;
 
             // Counter-rotate weights to simulate gravity?
-            // This adds a really nice touch of realism.
-            // If the beam is at angle A, weights should be at -A relative to beam.
             for(let w of weights) {
                 if (w.parent === beamGroup) {
                     w.rotation.z = -beamGroup.rotation.z;
@@ -558,7 +533,6 @@
                     scene.attach(w); // Detach from beam
                 }
                 w.userData.onPeg = null;
-                // Animate or teleport back to random supply pos
                 returnToSupply(w);
             }
         };
