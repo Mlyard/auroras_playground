@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Cube Playground</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f0f0;
+            user-select: none; /* Prevent text selection while dragging */
+        }
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+        #ui-layer {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            pointer-events: none; /* Let clicks pass through to canvas */
+            max-width: 300px;
+            z-index: 10;
+        }
+        h1 {
+            margin: 0 0 10px 0;
+            font-size: 1.2rem;
+            color: #333;
+        }
+        p {
+            margin: 5px 0;
+            font-size: 0.9rem;
+            color: #555;
+        }
+        .key {
+            display: inline-block;
+            background: #eee;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-family: monospace;
+            font-weight: bold;
+            font-size: 0.8rem;
+        }
+        #color-picker {
+            pointer-events: auto;
+            margin-top: 10px;
+            display: flex;
+            gap: 5px;
+        }
+        .color-btn {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .color-btn:hover, .color-btn.active {
+            transform: scale(1.1);
+            border-color: #333;
+        }
+        .action-btn {
+            background: #ff5252;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: bold;
+            margin-top: 10px;
+            width: 100%;
+            transition: background 0.2s;
+            pointer-events: auto;
+        }
+        .action-btn:hover {
+            background: #d32f2f;
+        }
+        /* New Styles for Save/Load */
+        .save-btn {
+            background: #2196f3;
+        }
+        .save-btn:hover {
+            background: #1976d2;
+        }
+        .load-btn {
+            background: #ff9800;
+        }
+        .load-btn:hover {
+            background: #f57c00;
+        }
+        
+        /* Style hint for the Gizmo area */
+        #gizmo-hint {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 120px;
+            height: 120px;
+            border: 2px solid rgba(0,0,0,0.1);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 5;
+        }
+        #gizmo-label {
+            position: absolute;
+            top: 150px;
+            right: 35px;
+            font-size: 0.8rem;
+            color: #666;
+            font-weight: bold;
+            pointer-events: none;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui-layer">
+        <h1>Cube Builder</h1>
+        <p><span class="key">L-Click</span> Place Cube</p>
+        <p><span class="key">Shift</span> + <span class="key">Click</span> Remove Cube</p>
+        <p><span class="key">Compass</span> Drag to Rotate</p>
+        <p><span class="key">WASD</span> Pan Camera</p>
+        <p><span class="key">Scroll</span> Zoom</p>
+        
+        <div id="color-picker">
+            <div class="color-btn active" style="background: #4caf50;" onclick="setColor('#4caf50', this)"></div>
+            <div class="color-btn" style="background: #2196f3;" onclick="setColor('#2196f3', this)"></div>
+            <div class="color-btn" style="background: #ff9800;" onclick="setColor('#ff9800', this)"></div>
+            <div class="color-btn" style="background: #e91e63;" onclick="setColor('#e91e63', this)"></div>
+            <div class="color-btn" style="background: #9c27b0;" onclick="setColor('#9c27b0', this)"></div>
+        </div>
+
+        <button class="action-btn save-btn" onclick="saveScene()">Save Scene</button>
+        <button class="action-btn load-btn" onclick="loadScene()">Load Scene</button>
+        <button class="action-btn" onclick="resetScene()">Reset Scene</button>
+    </div>
+
+    <!-- Visual container to show where the gizmo is -->
+    <div id="gizmo-hint"></div>
+    <div id="gizmo-label">Compass</div>
+
+    <div id="canvas-container"></div>
+
+    <!-- Three.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Firebase Init ---
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        let currentUser = null;
+
+        const initAuth = async () => {
+             if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await signInWithCustomToken(auth, __initial_auth_token);
+             } else {
+                await signInAnonymously(auth);
+             }
+        };
+        initAuth();
+
+        onAuthStateChanged(auth, (user) => {
+            currentUser = user;
+        });
+
+        // --- Global Variables ---
+        let camera, scene, renderer;
+        let plane;
+        let mouse, raycaster;
+        let isShiftDown = false;
+        
+        // Gizmo Variables
+        let gizmoScene, gizmoCamera, gizmoMesh;
+        const gizmoSize = 120; // Size in pixels
+        const gizmoPadding = 20;
+
+        // Cubes logic
+        let rollOverMesh, rollOverMaterial;
+        let cubeGeo, cubeMaterial;
+        let objects = []; // Objects to intersect (plane + cubes)
+        let cubes = [];   // Only the placed cubes
+        let currentColor = 0x4caf50;
+
+        // Camera Controls
+        let isDragging = false;
+        let isGizmoDragging = false;
+        let onMouseDownTheta = 0;
+        let onMouseDownPhi = 0;
+        let onMouseDownMouseX = 0;
+        let onMouseDownMouseY = 0;
+        
+        // Spherical Coordinates for Orbit
+        let theta = 45; // Horizontal angle
+        let phi = 60;   // Vertical angle
+        let radius = 1000;
+        let target = new THREE.Vector3(0, 0, 0); // Where the camera looks
+
+        // Keyboard State
+        const keys = { w: false, a: false, s: false, d: false, q: false, e: false };
+
+        init();
+        animate();
+
+        function init() {
+            const container = document.getElementById('canvas-container');
+
+            // --- 1. Main Scene Setup ---
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xf0f0f0);
+            scene.fog = new THREE.Fog(0xf0f0f0, 1000, 3000);
+
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 10000);
+            updateCameraPosition();
+
+            // Lights
+            const ambientLight = new THREE.AmbientLight(0x606060);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff);
+            directionalLight.position.set(1, 1.75, 0.5).normalize();
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+
+            // Roll-over Helper
+            const rollOverGeo = new THREE.BoxGeometry(50, 50, 50);
+            rollOverMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000, opacity: 0.5, transparent: true });
+            rollOverMesh = new THREE.Mesh(rollOverGeo, rollOverMaterial);
+            scene.add(rollOverMesh);
+
+            // Geometry
+            cubeGeo = new THREE.BoxGeometry(50, 50, 50);
+
+            // Grid
+            const gridHelper = new THREE.GridHelper(2000, 40);
+            scene.add(gridHelper);
+
+            // Plane
+            const geometry = new THREE.PlaneGeometry(2000, 2000);
+            geometry.rotateX(-Math.PI / 2);
+            plane = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ visible: false }));
+            scene.add(plane);
+            objects.push(plane);
+
+            // --- 2. Gizmo (Compass) Setup ---
+            gizmoScene = new THREE.Scene();
+            
+            gizmoCamera = new THREE.OrthographicCamera(-2, 2, 2, -2, 0.1, 100);
+            gizmoCamera.position.set(0, 0, 10);
+            gizmoCamera.lookAt(0, 0, 0);
+
+            const gizmoGeo = new THREE.BoxGeometry(1.5, 1.5, 1.5);
+            const gizmoMats = [
+                new THREE.MeshBasicMaterial({ color: 0xff3333 }),
+                new THREE.MeshBasicMaterial({ color: 0x880000 }),
+                new THREE.MeshBasicMaterial({ color: 0x33ff33 }),
+                new THREE.MeshBasicMaterial({ color: 0x008800 }),
+                new THREE.MeshBasicMaterial({ color: 0x3333ff }),
+                new THREE.MeshBasicMaterial({ color: 0x000088 })
+            ];
+            gizmoMesh = new THREE.Mesh(gizmoGeo, gizmoMats);
+            
+            const axisHelper = new THREE.AxesHelper(2);
+            gizmoMesh.add(axisHelper);
+            
+            gizmoScene.add(gizmoMesh);
+            
+            const gizmoLight = new THREE.AmbientLight(0xffffff, 1);
+            gizmoScene.add(gizmoLight);
+
+
+            // --- 3. Renderer Setup ---
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.autoClear = false;
+            container.appendChild(renderer.domElement);
+
+            // --- 4. Event Listeners ---
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+
+            document.addEventListener('mousemove', onDocumentMouseMove, false);
+            document.addEventListener('mousedown', onDocumentMouseDown, false);
+            document.addEventListener('mouseup', onDocumentMouseUp, false);
+            document.addEventListener('keydown', onDocumentKeyDown, false);
+            document.addEventListener('keyup', onDocumentKeyUp, false);
+            document.addEventListener('wheel', onDocumentMouseWheel, { passive: false });
+            window.addEventListener('resize', onWindowResize, false);
+            
+            document.addEventListener('contextmenu', event => event.preventDefault());
+        }
+
+        // --- Interaction Logic ---
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function isMouseOverGizmo(clientX, clientY) {
+            const rightEdge = window.innerWidth - gizmoPadding;
+            const leftEdge = window.innerWidth - gizmoPadding - gizmoSize;
+            const topEdge = gizmoPadding;
+            const bottomEdge = gizmoPadding + gizmoSize;
+            return (clientX >= leftEdge && clientX <= rightEdge && clientY >= topEdge && clientY <= bottomEdge);
+        }
+
+        function onDocumentMouseDown(event) {
+            if (event.target.closest('#ui-layer')) return;
+
+            if (isMouseOverGizmo(event.clientX, event.clientY)) {
+                isGizmoDragging = true;
+                onMouseDownMouseX = event.clientX;
+                onMouseDownMouseY = event.clientY;
+                onMouseDownTheta = theta;
+                onMouseDownPhi = phi;
+                return;
+            }
+
+            if (event.button === 2) {
+                isDragging = true;
+                onMouseDownMouseX = event.clientX;
+                onMouseDownMouseY = event.clientY;
+                onMouseDownTheta = theta;
+                onMouseDownPhi = phi;
+                document.body.style.cursor = 'move';
+                return;
+            }
+
+            if (event.button === 0) {
+                mouse.set((event.clientX / window.innerWidth) * 2 - 1, -(event.clientY / window.innerHeight) * 2 + 1);
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObjects(objects);
+
+                if (intersects.length > 0) {
+                    const intersect = intersects[0];
+                    if (isShiftDown) {
+                        if (intersect.object !== plane) {
+                            scene.remove(intersect.object);
+                            objects.splice(objects.indexOf(intersect.object), 1);
+                            cubes.splice(cubes.indexOf(intersect.object), 1);
+                        }
+                    } else {
+                        const voxel = new THREE.Mesh(
+                            cubeGeo, 
+                            new THREE.MeshLambertMaterial({ color: currentColor })
+                        );
+                        voxel.position.copy(intersect.point).add(intersect.face.normal);
+                        voxel.position.divideScalar(50).floor().multiplyScalar(50).addScalar(25);
+                        
+                        const edges = new THREE.EdgesGeometry(cubeGeo);
+                        const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2 }));
+                        voxel.add(line); 
+
+                        scene.add(voxel);
+                        objects.push(voxel);
+                        cubes.push(voxel);
+                    }
+                }
+            }
+        }
+
+        function onDocumentMouseMove(event) {
+            event.preventDefault();
+            if (isDragging || isGizmoDragging) {
+                const deltaX = event.clientX - onMouseDownMouseX;
+                const deltaY = event.clientY - onMouseDownMouseY;
+                theta = onMouseDownTheta - deltaX * 0.5;
+                phi = onMouseDownPhi - deltaY * 0.5;
+                phi = Math.min(179, Math.max(1, phi));
+                updateCameraPosition();
+                return; 
+            }
+            mouse.set((event.clientX / window.innerWidth) * 2 - 1, -(event.clientY / window.innerHeight) * 2 + 1);
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(objects);
+
+            if (intersects.length > 0) {
+                const intersect = intersects[0];
+                rollOverMesh.visible = true;
+                rollOverMesh.position.copy(intersect.point).add(intersect.face.normal);
+                rollOverMesh.position.divideScalar(50).floor().multiplyScalar(50).addScalar(25);
+            } else {
+                rollOverMesh.visible = false;
+            }
+        }
+
+        function onDocumentMouseUp(event) {
+            isDragging = false;
+            isGizmoDragging = false;
+            document.body.style.cursor = 'default';
+        }
+
+        function onDocumentMouseWheel(event) {
+            event.preventDefault();
+            radius += event.deltaY * 0.5;
+            radius = Math.max(100, Math.min(3000, radius));
+            updateCameraPosition();
+        }
+
+        function onDocumentKeyDown(event) {
+            switch (event.keyCode) {
+                case 16: isShiftDown = true; break;
+                case 87: keys.w = true; break; 
+                case 65: keys.a = true; break; 
+                case 83: keys.s = true; break; 
+                case 68: keys.d = true; break; 
+                case 81: keys.q = true; break; 
+                case 69: keys.e = true; break; 
+                case 38: keys.w = true; break; 
+                case 40: keys.s = true; break; 
+                case 37: keys.a = true; break; 
+                case 39: keys.d = true; break; 
+            }
+        }
+
+        function onDocumentKeyUp(event) {
+            switch (event.keyCode) {
+                case 16: isShiftDown = false; break;
+                case 87: keys.w = false; break;
+                case 65: keys.a = false; break;
+                case 83: keys.s = false; break;
+                case 68: keys.d = false; break;
+                case 81: keys.q = false; break; 
+                case 69: keys.e = false; break; 
+                case 38: keys.w = false; break;
+                case 40: keys.s = false; break;
+                case 37: keys.a = false; break;
+                case 39: keys.d = false; break;
+            }
+        }
+
+        function updateCameraPosition() {
+            const x = radius * Math.sin(THREE.Math.degToRad(theta)) * Math.cos(THREE.Math.degToRad(phi));
+            const y = radius * Math.sin(THREE.Math.degToRad(phi));
+            const z = radius * Math.cos(THREE.Math.degToRad(theta)) * Math.cos(THREE.Math.degToRad(phi));
+            camera.position.x = target.x + x;
+            camera.position.y = target.y + y;
+            camera.position.z = target.z + z;
+            camera.lookAt(target);
+        }
+
+        function updatePan() {
+            const panSpeed = 10;
+            const rotateSpeed = 2; 
+            if (keys.q) theta += rotateSpeed;
+            if (keys.e) theta -= rotateSpeed;
+            const forward = new THREE.Vector3();
+            const right = new THREE.Vector3();
+            camera.getWorldDirection(forward);
+            forward.y = 0;
+            forward.normalize();
+            right.crossVectors(forward, camera.up).normalize();
+            if (keys.w) target.add(forward.multiplyScalar(panSpeed));
+            if (keys.s) target.add(forward.multiplyScalar(-panSpeed));
+            if (keys.d) target.add(right.multiplyScalar(panSpeed));
+            if (keys.a) target.add(right.multiplyScalar(-panSpeed));
+            if (keys.w || keys.s || keys.a || keys.d || keys.q || keys.e) {
+                updateCameraPosition();
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            updatePan();
+
+            renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
+            renderer.setScissorTest(false); 
+            renderer.clear(); 
+            renderer.render(scene, camera);
+            
+            const gizmoRadius = 5; 
+            const gx = gizmoRadius * Math.sin(THREE.Math.degToRad(theta)) * Math.cos(THREE.Math.degToRad(phi));
+            const gy = gizmoRadius * Math.sin(THREE.Math.degToRad(phi));
+            const gz = gizmoRadius * Math.cos(THREE.Math.degToRad(theta)) * Math.cos(THREE.Math.degToRad(phi));
+            
+            gizmoCamera.position.set(gx, gy, gz);
+            gizmoCamera.lookAt(0, 0, 0);
+
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            renderer.setScissor(width - gizmoSize - gizmoPadding, height - gizmoSize - gizmoPadding, gizmoSize, gizmoSize);
+            renderer.setViewport(width - gizmoSize - gizmoPadding, height - gizmoSize - gizmoPadding, gizmoSize, gizmoSize);
+            renderer.setScissorTest(true);
+            renderer.clearDepth(); 
+            renderer.render(gizmoScene, gizmoCamera);
+        }
+
+        // --- UI Functions ---
+        window.setColor = function(hex, el) {
+            currentColor = new THREE.Color(hex);
+            document.querySelectorAll('.color-btn').forEach(btn => btn.classList.remove('active'));
+            el.classList.add('active');
+        }
+
+        window.resetScene = function() {
+            for (let i = 0; i < cubes.length; i++) {
+                scene.remove(cubes[i]);
+            }
+            cubes = [];
+            objects = [plane];
+            theta = 45;
+            phi = 60;
+            radius = 1000;
+            target.set(0, 0, 0);
+            updateCameraPosition();
+        }
+
+        // --- Save/Load Functions (Firestore) ---
+        window.saveScene = async function() {
+            if (!currentUser) {
+                alert("Initializing storage... please try again in a moment.");
+                return;
+            }
+
+            const data = cubes.map(cube => ({
+                x: cube.position.x,
+                y: cube.position.y,
+                z: cube.position.z,
+                color: cube.material.color.getHex()
+            }));
+
+            try {
+                // Path: /artifacts/{appId}/users/{userId}/data/scene
+                const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'data', 'scene');
+                await setDoc(docRef, {
+                    sceneData: JSON.stringify(data),
+                    updatedAt: Date.now()
+                });
+                alert("Scene saved successfully!");
+            } catch (error) {
+                console.error("Error saving scene:", error);
+                alert("Failed to save scene. Please try again.");
+            }
+        };
+
+        window.loadScene = async function() {
+            if (!currentUser) {
+                alert("Initializing storage... please try again in a moment.");
+                return;
+            }
+
+            try {
+                const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'data', 'scene');
+                const docSnap = await getDoc(docRef);
+
+                if (docSnap.exists()) {
+                    const data = JSON.parse(docSnap.data().sceneData);
+                    
+                    // Clear current scene first
+                    window.resetScene();
+
+                    // Rebuild
+                    data.forEach(item => {
+                        const material = new THREE.MeshLambertMaterial({ color: item.color });
+                        const voxel = new THREE.Mesh(cubeGeo, material);
+                        voxel.position.set(item.x, item.y, item.z);
+
+                        const edges = new THREE.EdgesGeometry(cubeGeo);
+                        const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2 }));
+                        voxel.add(line);
+
+                        scene.add(voxel);
+                        objects.push(voxel);
+                        cubes.push(voxel);
+                    });
+                    
+                    alert("Scene loaded!");
+                } else {
+                    alert("No saved scene found.");
+                }
+            } catch (error) {
+                console.error("Error loading scene:", error);
+                alert("Failed to load scene.");
+            }
+        };
+
+    </script>
+</body>
+</html>
