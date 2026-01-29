@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laurel Ridge Virtual Playground</title>
+    <!-- Importing a playful, rounded font -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&family=Comic+Neue:wght@700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #FF6B6B;
+            --secondary-color: #4ECDC4;
+            --accent-color: #FFE66D;
+            --bg-color: #f7f9fc;
+            --card-bg: #ffffff;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Fredoka', sans-serif;
+            background-color: var(--bg-color);
+            background-image: radial-gradient(#e0e7ff 2px, transparent 2px);
+            background-size: 30px 30px;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        /* Header Section */
+        header {
+            background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+            color: white;
+            text-align: center;
+            padding: 2rem 1rem;
+            border-bottom-left-radius: 50% 20px;
+            border-bottom-right-radius: 50% 20px;
+            box-shadow: 0 4px 15px rgba(108, 92, 231, 0.2);
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            font-family: 'Comic Neue', cursive;
+            font-size: 3rem;
+            margin: 0;
+            text-shadow: 2px 2px 0px rgba(0,0,0,0.1);
+            letter-spacing: 1px;
+        }
+
+        p.subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            margin-top: 10px;
+        }
+
+        /* Main Game Grid */
+        main {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 20px;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+
+        /* Game Cards */
+        .game-card {
+            background: var(--card-bg);
+            border-radius: 20px;
+            width: 280px;
+            padding: 25px;
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s ease;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+            border: 3px solid transparent;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .game-card:hover {
+            transform: translateY(-10px) scale(1.02);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.1);
+            border-color: var(--secondary-color);
+        }
+
+        /* Icon Container */
+        .icon-container {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            font-size: 3.5rem;
+            transition: transform 0.3s ease;
+        }
+
+        .game-card:hover .icon-container {
+            transform: rotate(10deg);
+        }
+
+        /* Specific Card Styles */
+        .card-math .icon-container {
+            background-color: #fff0f0;
+            color: var(--primary-color);
+        }
+
+        .card-blocks .icon-container {
+            background-color: #e6fffa;
+            color: var(--secondary-color);
+        }
+
+        h2 {
+            margin: 10px 0;
+            font-size: 1.8rem;
+            color: #2d3436;
+        }
+
+        p.description {
+            text-align: center;
+            color: #636e72;
+            line-height: 1.5;
+            font-size: 1rem;
+            margin-bottom: 20px;
+        }
+
+        .play-btn {
+            background-color: var(--accent-color);
+            color: #d35400;
+            padding: 10px 30px;
+            border-radius: 50px;
+            font-weight: bold;
+            font-size: 1.1rem;
+            border: none;
+            cursor: pointer;
+            width: 100%;
+            text-align: center;
+            transition: background 0.2s;
+        }
+
+        .game-card:hover .play-btn {
+            background-color: #ffd43b;
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 20px;
+            color: #b2bec3;
+            font-size: 0.9rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            h1 { font-size: 2rem; }
+            main { padding: 10px; }
+            .game-card { width: 100%; max-width: 320px; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Laurel Ridge Virtual Playground</h1>
+        <p class="subtitle">Where learning is fun!</p>
+    </header>
+
+    <main>
+        <!-- Math Balancer Card -->
+        <a href="https://mlyard.github.io/auroras_playground/math_balancer.html" class="game-card card-math">
+            <div class="icon-container">
+                ⚖️
+            </div>
+            <h2>Math Balancer</h2>
+            <p class="description">Can you balance the scale? Use math to solve the puzzle!</p>
+            <div class="play-btn">Play Now!</div>
+        </a>
+
+        <!-- Blocks Card -->
+        <a href="https://mlyard.github.io/auroras_playground/blocks.html" class="game-card card-blocks">
+            <div class="icon-container">
+                🧱
+            </div>
+            <h2>Block Builder</h2>
+            <p class="description">Build amazing 3D towers, castles, and worlds with colorful cubes!</p>
+            <div class="play-btn">Play Now!</div>
+        </a>
+    </main>
+
+    <footer>
+        &copy; 2025 Laurel Ridge Virtual Playground
+    </footer>
+
+</body>
+</html>
