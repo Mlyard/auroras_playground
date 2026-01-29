@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time to Learn! - Laurel Ridge</title>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&family=Comic+Neue:wght@700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #FF6B6B;
+            --secondary: #4ECDC4;
+            --accent: #FFE66D;
+            --bg: #f0f7ff;
+            --clock-face: #ffffff;
+            --clock-border: #2d3436;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Fredoka', sans-serif;
+            background-color: var(--bg);
+            background-image: radial-gradient(#dbe9f9 2px, transparent 2px);
+            background-size: 30px 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            user-select: none;
+        }
+
+        /* Top UI Container */
+        #ui-container {
+            position: absolute;
+            top: 20px;
+            text-align: center;
+            z-index: 10;
+            width: 100%;
+            pointer-events: none; /* Allow clicks to pass through empty space */
+        }
+
+        /* Re-enable clicks for the actual text boxes */
+        #ui-container > * {
+            pointer-events: auto;
+        }
+
+        /* Bottom UI Container for Button */
+        #bottom-container {
+            position: absolute;
+            bottom: 30px;
+            text-align: center;
+            width: 100%;
+            z-index: 10;
+        }
+
+        h1 {
+            font-family: 'Comic Neue', cursive;
+            color: #333;
+            font-size: 2.5rem;
+            margin: 0 0 10px 0;
+        }
+
+        .instruction-box {
+            background: white;
+            padding: 15px 30px;
+            border-radius: 50px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+            display: inline-block;
+            border: 3px solid var(--secondary);
+            margin-bottom: 20px; /* Add margin to push elements below it */
+        }
+
+        #target-time {
+            font-size: 2.5rem;
+            color: var(--primary);
+            font-weight: bold;
+        }
+
+        #message {
+            margin-top: 10px;
+            min-height: 30px; /* Prevent jump when empty */
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #333;
+        }
+
+        #check-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.5rem;
+            border-radius: 50px;
+            font-family: 'Fredoka', sans-serif;
+            cursor: pointer;
+            box-shadow: 0 5px 0 #d64545;
+            transition: transform 0.1s;
+        }
+
+        #check-btn:active {
+            transform: translateY(5px);
+            box-shadow: 0 0 0 transparent;
+        }
+
+        canvas {
+            display: block;
+            cursor: pointer;
+        }
+        
+        #home-link {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            text-decoration: none;
+            background: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            color: #333;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            font-weight: bold;
+            z-index: 20; /* Ensure it stays above everything */
+        }
+    </style>
+</head>
+<body>
+
+    <a href="https://mlyard.github.io/auroras_playground/home.html" id="home-link">🏠 Home</a>
+
+    <div id="ui-container">
+        <h1>What time is it?</h1>
+        <div class="instruction-box">
+            Set the clock to <span id="target-time">--:--</span>
+        </div>
+        <div id="message"></div>
+    </div>
+
+    <div id="bottom-container">
+        <button id="check-btn" onclick="checkTime()">Check Answer</button>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const targetTimeEl = document.getElementById('target-time');
+        const messageEl = document.getElementById('message');
+        const checkBtn = document.getElementById('check-btn');
+
+        // Game State
+        let targetHour = 0;
+        let targetMinute = 0;
+        let currentHourAngle = 0; // Radians
+        let currentMinuteAngle = 0; // Radians
+        let dragging = null; // 'hour' or 'minute' or null
+        let isSuccess = false;
+
+        // Visual Config
+        let centerX, centerY, radius;
+        
+        // Audio Context
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+
+        // Confetti
+        let particles = [];
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            centerX = canvas.width / 2;
+            // Shift the clock down by adding 50px to the center
+            centerY = (canvas.height / 2) + 50; 
+            
+            // Calculate radius based on available space, leaving room for top and bottom UI
+            // We increase the reserved height (350px) to ensure the clock is smaller and doesn't hit UI
+            const availableHeight = canvas.height - 350;
+            const availableWidth = canvas.width - 40;
+            radius = Math.min(availableWidth / 2, availableHeight / 2) * 0.9;
+            
+            // Min size safety
+            if (radius < 100) radius = 100;
+
+            draw();
+        }
+
+        function generateTime() {
+            targetHour = Math.floor(Math.random() * 12) + 1; // 1-12
+            targetMinute = Math.floor(Math.random() * 12) * 5; // 0, 5, 10... 55 (easier steps)
+            
+            // Format time text
+            const minStr = targetMinute.toString().padStart(2, '0');
+            targetTimeEl.textContent = `${targetHour}:${minStr}`;
+            
+            // Reset hands to 12:00
+            currentHourAngle = -Math.PI / 2;
+            currentMinuteAngle = -Math.PI / 2;
+            
+            isSuccess = false;
+            messageEl.textContent = "";
+            checkBtn.textContent = "Check Answer";
+            checkBtn.style.background = "#FF6B6B";
+            checkBtn.style.boxShadow = "0 5px 0 #d64545";
+            particles = [];
+            
+            draw();
+        }
+
+        // --- Drawing ---
+
+        function drawClockFace() {
+            // Shadow
+            ctx.beginPath();
+            ctx.arc(centerX, centerY + 10, radius, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(0,0,0,0.1)';
+            ctx.fill();
+
+            // White Circle
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+            ctx.fillStyle = 'white';
+            ctx.fill();
+            ctx.strokeStyle = '#2d3436';
+            ctx.lineWidth = 10;
+            ctx.stroke();
+
+            // Center Pin
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 8, 0, Math.PI * 2);
+            ctx.fillStyle = '#333';
+            ctx.fill();
+
+            // Numbers
+            ctx.font = `bold ${radius * 0.15}px 'Comic Neue'`;
+            ctx.fillStyle = '#333';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            for (let num = 1; num <= 12; num++) {
+                const angle = (num * 30 - 90) * (Math.PI / 180);
+                const x = centerX + Math.cos(angle) * (radius * 0.8);
+                const y = centerY + Math.sin(angle) * (radius * 0.8);
+                ctx.fillText(num.toString(), x, y);
+            }
+
+            // Ticks
+            for (let i = 0; i < 60; i++) {
+                const angle = (i * 6 - 90) * (Math.PI / 180);
+                const isHour = i % 5 === 0;
+                const len = isHour ? radius * 0.9 : radius * 0.95;
+                const innerLen = radius; // to edge
+                
+                ctx.beginPath();
+                ctx.moveTo(centerX + Math.cos(angle) * len, centerY + Math.sin(angle) * len);
+                ctx.lineTo(centerX + Math.cos(angle) * innerLen, centerY + Math.sin(angle) * innerLen);
+                ctx.strokeStyle = isHour ? '#333' : '#ccc';
+                ctx.lineWidth = isHour ? 4 : 2;
+                ctx.stroke();
+            }
+        }
+
+        function drawHand(angle, length, color, width) {
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            ctx.rotate(angle);
+            
+            ctx.beginPath();
+            ctx.moveTo(-10, 0); // slight overhang
+            ctx.lineTo(length, 0);
+            ctx.lineWidth = width;
+            ctx.strokeStyle = color;
+            ctx.lineCap = 'round';
+            ctx.stroke();
+
+            // Arrow tip
+            ctx.beginPath();
+            ctx.moveTo(length, 0);
+            ctx.lineTo(length - 15, -10);
+            ctx.lineTo(length - 15, 10);
+            ctx.fillStyle = color;
+            ctx.fill();
+            
+            ctx.restore();
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            drawClockFace();
+            
+            // Draw Hour Hand (Red)
+            drawHand(currentHourAngle, radius * 0.5, '#FF6B6B', 12);
+            
+            // Draw Minute Hand (Blue)
+            drawHand(currentMinuteAngle, radius * 0.75, '#4ECDC4', 8);
+
+            // Draw Center Cap
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 12, 0, Math.PI * 2);
+            ctx.fillStyle = '#FFE66D';
+            ctx.fill();
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Confetti
+            if (isSuccess) {
+                updateConfetti();
+            }
+        }
+
+        // --- Interaction ---
+
+        function getAngle(x, y) {
+            return Math.atan2(y - centerY, x - centerX);
+        }
+
+        function normalizeAngle(angle) {
+            // normalize to 0 - 2PI starting from -PI/2 (12 o'clock)
+            // But atan2 returns -PI to PI
+            return angle;
+        }
+
+        function onDown(e) {
+            if (isSuccess) return;
+            
+            const x = (e.touches ? e.touches[0].clientX : e.clientX);
+            const y = (e.touches ? e.touches[0].clientY : e.clientY);
+            
+            const dx = x - centerX;
+            const dy = y - centerY;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            
+            if (dist > radius + 20) return;
+
+            // Simple heuristic: if closely aligned with hour angle, pick hour, else minute
+            // This is a simplified UX decision.
+            const clickAngle = Math.atan2(dy, dx);
+            
+            // Check angular distance (careful with wrap around)
+            const hourDiff = Math.abs(Math.atan2(Math.sin(clickAngle - currentHourAngle), Math.cos(clickAngle - currentHourAngle)));
+            const minDiff = Math.abs(Math.atan2(Math.sin(clickAngle - currentMinuteAngle), Math.cos(clickAngle - currentMinuteAngle)));
+            
+            // Bias towards minute hand if they are close, as it's longer/more interactive usually
+            if (hourDiff < 0.3 && hourDiff < minDiff) {
+                dragging = 'hour';
+            } else {
+                dragging = 'minute';
+            }
+        }
+
+        function onMove(e) {
+            if (!dragging) return;
+            e.preventDefault();
+            
+            const x = (e.touches ? e.touches[0].clientX : e.clientX);
+            const y = (e.touches ? e.touches[0].clientY : e.clientY);
+            
+            let angle = getAngle(x, y);
+
+            // Snap to 12 increments (30 degrees) for easy setting? 
+            // Let's snap minute to 6 degrees (minutes) and hour to free or 12?
+            // Free movement feels smoother, we snap on Check.
+            
+            if (dragging === 'hour') {
+                currentHourAngle = angle;
+            } else {
+                currentMinuteAngle = angle;
+            }
+            draw();
+        }
+
+        function onUp() {
+            dragging = null;
+            // Optional: Snap to closest tick on release
+            if(!isSuccess) {
+                snapHands();
+                draw();
+            }
+        }
+
+        function snapHands() {
+            // Snap Minute to 6 degrees (minute ticks)
+            const stepMin = (Math.PI * 2) / 60;
+            // Adjust angle to be positive 0-2PI for calculation
+            let mAngle = currentMinuteAngle + Math.PI/2;
+            let mSteps = Math.round(mAngle / stepMin);
+            currentMinuteAngle = (mSteps * stepMin) - Math.PI/2;
+            
+            // Snap Hour to 30 degrees (hour ticks) approx
+            // Or allow it to be anywhere? Let's snap hour to hours to make it easier for kids
+            const stepHour = (Math.PI * 2) / 12;
+            let hAngle = currentHourAngle + Math.PI/2;
+            let hSteps = Math.round(hAngle / stepHour);
+            currentHourAngle = (hSteps * stepHour) - Math.PI/2;
+        }
+
+        // --- Logic ---
+
+        function checkTime() {
+            if (isSuccess) {
+                // Button acts as "Next Level"
+                generateTime();
+                return;
+            }
+
+            // Calculate current time from angles
+            // Minute: -PI/2 is 0. 
+            // Normalize to 0-12 range
+            
+            // Minute Logic
+            let mAngle = currentMinuteAngle + Math.PI/2; 
+            // Normalizing to 0 - 2PI
+            mAngle = (mAngle + Math.PI * 2) % (Math.PI * 2);
+            let minuteVal = Math.round((mAngle / (Math.PI * 2)) * 60) % 60;
+
+            // Hour Logic
+            let hAngle = currentHourAngle + Math.PI/2;
+            hAngle = (hAngle + Math.PI * 2) % (Math.PI * 2);
+            let hourVal = Math.round((hAngle / (Math.PI * 2)) * 12);
+            if (hourVal === 0) hourVal = 12;
+
+            // Validation
+            const minuteCorrect = Math.abs(minuteVal - targetMinute) < 2; // Tolerance
+            const hourCorrect = hourVal === targetHour;
+
+            if (minuteCorrect && hourCorrect) {
+                success();
+            } else {
+                fail();
+            }
+        }
+
+        function success() {
+            isSuccess = true;
+            messageEl.textContent = "Great Job! Correct!";
+            messageEl.style.color = "#4caf50";
+            checkBtn.textContent = "Next Clock ->";
+            checkBtn.style.background = "#4caf50";
+            checkBtn.style.boxShadow = "0 5px 0 #2e7d32";
+            
+            playTone(523.25, 'triangle', 0.1); // C5
+            setTimeout(() => playTone(659.25, 'triangle', 0.1), 150); // E5
+            setTimeout(() => playTone(783.99, 'triangle', 0.2), 300); // G5
+            
+            createConfetti();
+            animateConfetti();
+        }
+
+        function fail() {
+            messageEl.textContent = "Not quite. Try again!";
+            messageEl.style.color = "#f44336";
+            
+            playTone(150, 'sawtooth', 0.3); // Low buzz
+        }
+
+        // --- Audio ---
+        function playTone(freq, type, duration) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.value = freq;
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + duration);
+            osc.stop(audioCtx.currentTime + duration);
+        }
+
+        // --- Confetti System ---
+        function createConfetti() {
+            for (let i = 0; i < 100; i++) {
+                particles.push({
+                    x: canvas.width / 2,
+                    y: canvas.height / 2,
+                    vx: (Math.random() - 0.5) * 20,
+                    vy: (Math.random() - 0.5) * 20 - 5,
+                    color: `hsl(${Math.random() * 360}, 100%, 50%)`,
+                    size: Math.random() * 10 + 5,
+                    life: 100
+                });
+            }
+        }
+
+        function updateConfetti() {
+            if (!isSuccess) return;
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.5; // Gravity
+                p.life--;
+                
+                ctx.fillStyle = p.color;
+                ctx.fillRect(p.x, p.y, p.size, p.size);
+                
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+            if (particles.length > 0) {
+                requestAnimationFrame(updateConfetti);
+            }
+        }
+
+        function animateConfetti() {
+            // Helper to start loop
+            draw();
+        }
+
+
+        // Init
+        window.addEventListener('resize', resize);
+        canvas.addEventListener('mousedown', onDown);
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+        
+        canvas.addEventListener('touchstart', onDown, {passive: false});
+        window.addEventListener('touchmove', onMove, {passive: false});
+        window.addEventListener('touchend', onUp);
+
+        resize();
+        generateTime();
+
+    </script>
+</body>
+</html>
