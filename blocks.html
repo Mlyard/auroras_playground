@@ -85,19 +85,6 @@
         .action-btn:hover {
             background: #d32f2f;
         }
-        /* New Styles for Save/Load */
-        .save-btn {
-            background: #2196f3;
-        }
-        .save-btn:hover {
-            background: #1976d2;
-        }
-        .load-btn {
-            background: #ff9800;
-        }
-        .load-btn:hover {
-            background: #f57c00;
-        }
         
         /* Style hint for the Gizmo area */
         #gizmo-hint {
@@ -141,8 +128,6 @@
             <div class="color-btn" style="background: #9c27b0;" onclick="setColor('#9c27b0', this)"></div>
         </div>
 
-        <button class="action-btn save-btn" onclick="saveScene()">Save Scene</button>
-        <button class="action-btn load-btn" onclick="loadScene()">Load Scene</button>
         <button class="action-btn" onclick="resetScene()">Reset Scene</button>
     </div>
 
@@ -155,40 +140,7 @@
     <!-- Three.js CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // --- Firebase & Storage Init ---
-        // We check if the environment variables exist. If not, we fallback to LocalStorage.
-        let db, auth, currentUser;
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        let useLocalStorage = false;
-
-        if (typeof __firebase_config !== 'undefined') {
-            const firebaseConfig = JSON.parse(__firebase_config);
-            const app = initializeApp(firebaseConfig);
-            auth = getAuth(app);
-            db = getFirestore(app);
-
-            const initAuth = async () => {
-                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                 } else {
-                    await signInAnonymously(auth);
-                 }
-            };
-            initAuth();
-
-            onAuthStateChanged(auth, (user) => {
-                currentUser = user;
-            });
-        } else {
-            console.log("Environment variables not found. Switching to Local Storage mode.");
-            useLocalStorage = true;
-        }
-
+    <script>
         // --- Global Variables ---
         let camera, scene, renderer;
         let plane;
@@ -532,131 +484,6 @@
             target.set(0, 0, 0);
             updateCameraPosition();
         }
-
-        // --- Save/Load Functions (Hybrid) ---
-        window.saveScene = async function() {
-            // 1. Local Storage Fallback
-            if (useLocalStorage) {
-                try {
-                    const data = cubes.map(cube => ({
-                        x: cube.position.x,
-                        y: cube.position.y,
-                        z: cube.position.z,
-                        color: cube.material.color.getHex()
-                    }));
-                    localStorage.setItem('cube_scene_local', JSON.stringify(data));
-                    alert("Scene saved to browser Local Storage!");
-                } catch (e) {
-                    console.error(e);
-                    alert("Failed to save to Local Storage.");
-                }
-                return;
-            }
-
-            // 2. Firebase Cloud Storage
-            if (!currentUser) {
-                alert("Initializing storage... please try again in a moment.");
-                return;
-            }
-
-            const data = cubes.map(cube => ({
-                x: cube.position.x,
-                y: cube.position.y,
-                z: cube.position.z,
-                color: cube.material.color.getHex()
-            }));
-
-            try {
-                // Path: /artifacts/{appId}/users/{userId}/data/scene
-                const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'data', 'scene');
-                await setDoc(docRef, {
-                    sceneData: JSON.stringify(data),
-                    updatedAt: Date.now()
-                });
-                alert("Scene saved to Cloud successfully!");
-            } catch (error) {
-                console.error("Error saving scene:", error);
-                alert("Failed to save scene. Please try again.");
-            }
-        };
-
-        window.loadScene = async function() {
-            // 1. Local Storage Fallback
-            if (useLocalStorage) {
-                try {
-                    const json = localStorage.getItem('cube_scene_local');
-                    if (json) {
-                        const data = JSON.parse(json);
-                        
-                        // Clear current scene first
-                        window.resetScene();
-
-                        // Rebuild
-                        data.forEach(item => {
-                            const material = new THREE.MeshLambertMaterial({ color: item.color });
-                            const voxel = new THREE.Mesh(cubeGeo, material);
-                            voxel.position.set(item.x, item.y, item.z);
-
-                            const edges = new THREE.EdgesGeometry(cubeGeo);
-                            const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2 }));
-                            voxel.add(line);
-
-                            scene.add(voxel);
-                            objects.push(voxel);
-                            cubes.push(voxel);
-                        });
-                        alert("Scene loaded from Local Storage!");
-                    } else {
-                        alert("No local save found.");
-                    }
-                } catch (e) {
-                    console.error(e);
-                    alert("Failed to load from Local Storage.");
-                }
-                return;
-            }
-
-            // 2. Firebase Cloud Storage
-            if (!currentUser) {
-                alert("Initializing storage... please try again in a moment.");
-                return;
-            }
-
-            try {
-                const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'data', 'scene');
-                const docSnap = await getDoc(docRef);
-
-                if (docSnap.exists()) {
-                    const data = JSON.parse(docSnap.data().sceneData);
-                    
-                    // Clear current scene first
-                    window.resetScene();
-
-                    // Rebuild
-                    data.forEach(item => {
-                        const material = new THREE.MeshLambertMaterial({ color: item.color });
-                        const voxel = new THREE.Mesh(cubeGeo, material);
-                        voxel.position.set(item.x, item.y, item.z);
-
-                        const edges = new THREE.EdgesGeometry(cubeGeo);
-                        const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2 }));
-                        voxel.add(line);
-
-                        scene.add(voxel);
-                        objects.push(voxel);
-                        cubes.push(voxel);
-                    });
-                    
-                    alert("Scene loaded from Cloud!");
-                } else {
-                    alert("No saved scene found.");
-                }
-            } catch (error) {
-                console.error("Error loading scene:", error);
-                alert("Failed to load scene.");
-            }
-        };
-
     </script>
 </body>
 </html>
