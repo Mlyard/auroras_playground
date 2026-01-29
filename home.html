@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Laurel Ridge Virtual Playground</title>
-    <!-- Importing a playful, rounded font -->
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&family=Comic+Neue:wght@700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -18,6 +17,8 @@
             --space-color: #1a1a2e;
             --logic-color: #3b82f6;
             --chem-color: #8b5cf6;
+            /* Added new variable for Word Wizard */
+            --word-color: #fa8231; 
         }
 
         body {
@@ -152,6 +153,12 @@
             color: var(--chem-color);
         }
 
+        /* Added Word Wizard Style */
+        .card-word .icon-container {
+            background-color: #fff8f0;
+            color: var(--word-color);
+        }
+
         h2 {
             margin: 10px 0;
             font-size: 1.8rem;
@@ -208,7 +215,6 @@
     </header>
 
     <main>
-        <!-- Math Balancer Card -->
         <a href="https://mlyard.github.io/auroras_playground/math_balancer.html" class="game-card card-math">
             <div class="icon-container">
                 ⚖️
@@ -218,7 +224,6 @@
             <div class="play-btn">Play Now!</div>
         </a>
 
-        <!-- Blocks Card -->
         <a href="https://mlyard.github.io/auroras_playground/blocks.html" class="game-card card-blocks">
             <div class="icon-container">
                 🧱
@@ -228,7 +233,6 @@
             <div class="play-btn">Play Now!</div>
         </a>
         
-        <!-- Clock Game Card -->
         <a href="https://mlyard.github.io/auroras_playground/telling_time.html" class="game-card card-clock">
             <div class="icon-container">
                 ⏰
@@ -238,7 +242,6 @@
             <div class="play-btn">Play Now!</div>
         </a>
 
-        <!-- Cash Register Card -->
         <a href="https://mlyard.github.io/auroras_playground/cash_register.html" class="game-card card-register">
             <div class="icon-container">
                 💰
@@ -248,7 +251,6 @@
             <div class="play-btn">Play Now!</div>
         </a>
 
-        <!-- State Snap Card -->
         <a href="https://mlyard.github.io/auroras_playground/state_snap.html" class="game-card card-snap">
             <div class="icon-container">
                 🗺️
@@ -258,7 +260,6 @@
             <div class="play-btn">Play Now!</div>
         </a>
 
-        <!-- Planet Pilot Card -->
         <a href="https://mlyard.github.io/auroras_playground/planet_pilot.html" class="game-card card-space">
             <div class="icon-container">
                 🚀
@@ -268,7 +269,6 @@
             <div class="play-btn">Play Now!</div>
         </a>
 
-        <!-- Logic Link Card -->
         <a href="https://mlyard.github.io/auroras_playground/logic_link.html" class="game-card card-logic">
             <div class="icon-container">
                 🤖
@@ -278,7 +278,6 @@
             <div class="play-btn">Play Now!</div>
         </a>
 
-        <!-- Color Chemist Card -->
         <a href="https://mlyard.github.io/auroras_playground/color_mixer.html" class="game-card card-chemist">
             <div class="icon-container">
                 🧪
@@ -287,6 +286,16 @@
             <p class="description">Experiment with color theory! Mix primary colors to match the target and become a lab pro.</p>
             <div class="play-btn">Play Now!</div>
         </a>
+
+        <a href="https://mlyard.github.io/auroras_playground/word_wizard.html" class="game-card card-word">
+            <div class="icon-container">
+                🪄
+            </div>
+            <h2>Word Wizard</h2>
+            <p class="description">Cast spells with letters! Spell words correctly to master the magic.</p>
+            <div class="play-btn">Play Now!</div>
+        </a>
+
     </main>
 
     <footer>
