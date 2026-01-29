@@ -17,9 +17,28 @@
             height: 100vh;
             display: block;
         }
-        #ui-layer {
+        /* Added Home Button Style */
+        #home-link {
             position: absolute;
             top: 20px;
+            left: 20px;
+            text-decoration: none;
+            background: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            color: #333;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            font-weight: bold;
+            z-index: 20; /* Ensure it stays above everything */
+            transition: transform 0.1s;
+        }
+        #home-link:hover {
+            transform: scale(1.05);
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 80px; /* Moved down to accommodate Home button */
             left: 20px;
             background: rgba(255, 255, 255, 0.9);
             padding: 20px;
@@ -133,6 +152,9 @@
     </style>
 </head>
 <body>
+
+    <!-- Home Button -->
+    <a href="https://mlyard.github.io/auroras_playground/home.html" id="home-link">🏠 Home</a>
 
     <div id="ui-layer">
         <button class="toggle-btn" onclick="toggleUI()">☰</button>
