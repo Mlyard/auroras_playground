@@ -28,6 +28,10 @@
             pointer-events: none; /* Let clicks pass through to canvas */
             max-width: 300px;
             z-index: 10;
+            transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+        }
+        #ui-layer.collapsed {
+            transform: translateX(calc(-100% - 30px));
         }
         h1 {
             margin: 0 0 10px 0;
@@ -85,6 +89,24 @@
         .action-btn:hover {
             background: #d32f2f;
         }
+        .toggle-btn {
+            position: absolute;
+            top: 0;
+            right: -40px;
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.9);
+            border: none;
+            border-radius: 0 8px 8px 0;
+            cursor: pointer;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+            color: #333;
+        }
         
         /* Style hint for the Gizmo area */
         #gizmo-hint {
@@ -113,6 +135,7 @@
 <body>
 
     <div id="ui-layer">
+        <button class="toggle-btn" onclick="toggleUI()">☰</button>
         <h1>Cube Builder</h1>
         <p><span class="key">L-Click</span> Place Cube</p>
         <p><span class="key">Shift</span> + <span class="key">Click</span> Remove Cube</p>
@@ -258,12 +281,19 @@
             raycaster = new THREE.Raycaster();
             mouse = new THREE.Vector2();
 
+            // Mouse Events
             document.addEventListener('mousemove', onDocumentMouseMove, false);
             document.addEventListener('mousedown', onDocumentMouseDown, false);
             document.addEventListener('mouseup', onDocumentMouseUp, false);
             document.addEventListener('keydown', onDocumentKeyDown, false);
             document.addEventListener('keyup', onDocumentKeyUp, false);
             document.addEventListener('wheel', onDocumentMouseWheel, { passive: false });
+            
+            // Touch Events (For Mobile Compass)
+            document.addEventListener('touchstart', onDocumentTouchStart, { passive: false });
+            document.addEventListener('touchmove', onDocumentTouchMove, { passive: false });
+            document.addEventListener('touchend', onDocumentTouchEnd, false);
+
             window.addEventListener('resize', onWindowResize, false);
             
             document.addEventListener('contextmenu', event => event.preventDefault());
@@ -283,6 +313,8 @@
             const bottomEdge = gizmoPadding + gizmoSize;
             return (clientX >= leftEdge && clientX <= rightEdge && clientY >= topEdge && clientY <= bottomEdge);
         }
+
+        // --- Mouse Handlers ---
 
         function onDocumentMouseDown(event) {
             if (event.target.closest('#ui-layer')) return;
@@ -369,6 +401,43 @@
             isGizmoDragging = false;
             document.body.style.cursor = 'default';
         }
+
+        // --- Touch Handlers (Mobile) ---
+
+        function onDocumentTouchStart(event) {
+            if (event.touches.length === 1) {
+                const touch = event.touches[0];
+                if (isMouseOverGizmo(touch.clientX, touch.clientY)) {
+                    isGizmoDragging = true;
+                    onMouseDownMouseX = touch.clientX;
+                    onMouseDownMouseY = touch.clientY;
+                    onMouseDownTheta = theta;
+                    onMouseDownPhi = phi;
+                    // Prevent default to stop scrolling while rotating
+                    event.preventDefault(); 
+                }
+            }
+        }
+
+        function onDocumentTouchMove(event) {
+            if (isGizmoDragging && event.touches.length === 1) {
+                event.preventDefault(); // Stop scroll
+                const touch = event.touches[0];
+                const deltaX = touch.clientX - onMouseDownMouseX;
+                const deltaY = touch.clientY - onMouseDownMouseY;
+                
+                theta = onMouseDownTheta - deltaX * 0.5;
+                phi = onMouseDownPhi - deltaY * 0.5;
+                phi = Math.min(179, Math.max(1, phi));
+                
+                updateCameraPosition();
+            }
+        }
+
+        function onDocumentTouchEnd(event) {
+            isGizmoDragging = false;
+        }
+
 
         function onDocumentMouseWheel(event) {
             event.preventDefault();
@@ -470,6 +539,11 @@
             currentColor = new THREE.Color(hex);
             document.querySelectorAll('.color-btn').forEach(btn => btn.classList.remove('active'));
             el.classList.add('active');
+        }
+
+        window.toggleUI = function() {
+            const ui = document.getElementById('ui-layer');
+            ui.classList.toggle('collapsed');
         }
 
         window.resetScene = function() {
