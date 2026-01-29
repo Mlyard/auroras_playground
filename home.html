@@ -13,6 +13,7 @@
             --accent-color: #FFE66D;
             --bg-color: #f7f9fc;
             --card-bg: #ffffff;
+            --money-color: #38a169;
         }
 
         body {
@@ -122,6 +123,11 @@
             color: #fbc02d;
         }
 
+        .card-register .icon-container {
+            background-color: #f0fff4;
+            color: var(--money-color);
+        }
+
         h2 {
             margin: 10px 0;
             font-size: 1.8rem;
@@ -205,6 +211,16 @@
             </div>
             <h2>Telling Time</h2>
             <p class="description">Tick tock! Move the hands to match the time shown on screen.</p>
+            <div class="play-btn">Play Now!</div>
+        </a>
+
+        <!-- Cash Register Card -->
+        <a href="https://mlyard.github.io/auroras_playground/cash_register.html" class="game-card card-register">
+            <div class="icon-container">
+                💰
+            </div>
+            <h2>The Register</h2>
+            <p class="description">Be the teller! Calculate and hand back the perfect change to your customers.</p>
             <div class="play-btn">Play Now!</div>
         </a>
     </main>
