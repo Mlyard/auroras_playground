@@ -17,6 +17,7 @@
             --map-color: #6c5ce7;
             --space-color: #1a1a2e;
             --logic-color: #3b82f6;
+            --chem-color: #8b5cf6;
         }
 
         body {
@@ -146,6 +147,11 @@
             color: var(--logic-color);
         }
 
+        .card-chemist .icon-container {
+            background-color: #f5f3ff;
+            color: var(--chem-color);
+        }
+
         h2 {
             margin: 10px 0;
             font-size: 1.8rem;
@@ -269,6 +275,16 @@
             </div>
             <h2>Logic Link</h2>
             <p class="description">Master basic coding! Guide the robot to the goal by building a sequence of moves.</p>
+            <div class="play-btn">Play Now!</div>
+        </a>
+
+        <!-- Color Chemist Card -->
+        <a href="https://mlyard.github.io/auroras_playground/color_mixer.html" class="game-card card-chemist">
+            <div class="icon-container">
+                🧪
+            </div>
+            <h2>Color Chemist</h2>
+            <p class="description">Experiment with color theory! Mix primary colors to match the target and become a lab pro.</p>
             <div class="play-btn">Play Now!</div>
         </a>
     </main>
