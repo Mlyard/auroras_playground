@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Math Balance Scale</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #e0f7fa; /* Light blue background */
+            user-select: none;
+        }
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+        #ui-layer {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px 30px;
+            border-radius: 50px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            text-align: center;
+            pointer-events: none;
+        }
+        h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            color: #333;
+        }
+        p {
+            margin: 5px 0 0 0;
+            font-size: 0.9rem;
+            color: #666;
+        }
+        #reset-btn {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            background: #ff5252;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            transition: transform 0.1s;
+        }
+        #reset-btn:active {
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui-layer">
+        <h1>Math Balance</h1>
+        <p>Drag blue weights to pegs. Make the Torque (Weight × Distance) equal!</p>
+    </div>
+
+    <button id="reset-btn" onclick="resetGame()">Reset Scale</button>
+
+    <div id="canvas-container"></div>
+
+    <!-- Three.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script>
+        // --- Global Config ---
+        const PEG_COUNT = 10;
+        const PEG_SPACING = 3.5; // Distance between numbers
+        const BEAM_WIDTH = (PEG_COUNT * PEG_SPACING * 2) + 4;
+        
+        // --- Three.js Globals ---
+        let scene, camera, renderer;
+        let beamGroup, standMesh; // Parts of the scale
+        let weights = [];         // Array of all weight meshes
+        let raycaster, mouse;
+        let dragPlane;            // Invisible plane for dragging
+        
+        // --- Game State ---
+        let heldWeight = null;
+        let dragOffset = new THREE.Vector3();
+        let scaleState = { leftTorque: 0, rightTorque: 0 };
+        
+        // To track what is on each peg for stacking
+        // Structure: pegSlots[side][index] = count
+        // side: 0=left, 1=right. index: 0=peg 1, 9=peg 10
+        let pegOccupancy = {
+            left: new Array(11).fill(0), // Using 1-based index for simplicity
+            right: new Array(11).fill(0)
+        };
+
+        init();
+        animate();
+
+        function init() {
+            const container = document.getElementById('canvas-container');
+
+            // 1. Scene Setup
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xe0f7fa);
+            
+            // Camera: Positioned front-on but slightly elevated 3D view
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 1000);
+            camera.position.set(0, 20, 100);
+            camera.lookAt(0, 5, 0);
+
+            // Lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
+            dirLight.position.set(10, 20, 10);
+            dirLight.castShadow = true;
+            dirLight.shadow.mapSize.width = 2048;
+            dirLight.shadow.mapSize.height = 2048;
+            scene.add(dirLight);
+
+            // 2. Build the Scale
+            createStand();
+            createBeam();
+            createWeightsSupply();
+
+            // 3. Invisible Drag Plane (parallel to camera)
+            const dragGeo = new THREE.PlaneGeometry(500, 500);
+            const dragMat = new THREE.MeshBasicMaterial({ visible: false });
+            dragPlane = new THREE.Mesh(dragGeo, dragMat);
+            dragPlane.position.z = 2; // Slightly in front of beam
+            scene.add(dragPlane);
+
+            // 4. Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            // 5. Events
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+
+            window.addEventListener('resize', onResize);
+            
+            // Mouse & Touch Events
+            document.addEventListener('mousedown', onPointerDown);
+            document.addEventListener('mousemove', onPointerMove);
+            document.addEventListener('mouseup', onPointerUp);
+            
+            document.addEventListener('touchstart', (e) => {
+                e.preventDefault(); // Stop scrolling
+                const touch = e.touches[0];
+                onPointerDown({ clientX: touch.clientX, clientY: touch.clientY });
+            }, { passive: false });
+
+            document.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                const touch = e.touches[0];
+                onPointerMove({ clientX: touch.clientX, clientY: touch.clientY });
+            }, { passive: false });
+
+            document.addEventListener('touchend', onPointerUp);
+        }
+
+        // --- Construction Functions ---
+
+        function createStand() {
+            const material = new THREE.MeshStandardMaterial({ color: 0x4caf50, roughness: 0.4 });
+            
+            // Base
+            const baseGeo = new THREE.BoxGeometry(30, 2, 10);
+            const base = new THREE.Mesh(baseGeo, material);
+            base.position.y = -10;
+            base.castShadow = true;
+            base.receiveShadow = true;
+            scene.add(base);
+
+            // Vertical Post
+            const postGeo = new THREE.BoxGeometry(3, 22, 3);
+            standMesh = new THREE.Mesh(postGeo, material);
+            standMesh.position.y = 0; // Center is 0, so it goes from -11 to 11
+            standMesh.castShadow = true;
+            standMesh.receiveShadow = true;
+            scene.add(standMesh);
+
+            // Pivot Pin (Visual)
+            const pinGeo = new THREE.CylinderGeometry(0.5, 0.5, 4, 16);
+            pinGeo.rotateX(Math.PI / 2);
+            const pin = new THREE.Mesh(pinGeo, new THREE.MeshStandardMaterial({ color: 0xffffff }));
+            pin.position.y = 8;
+            scene.add(pin);
+        }
+
+        function createBeam() {
+            beamGroup = new THREE.Group();
+            beamGroup.position.y = 8; // Pivot point height
+            scene.add(beamGroup);
+
+            // Main Yellow Bar
+            const barGeo = new THREE.BoxGeometry(BEAM_WIDTH, 2.5, 1.5);
+            const barMat = new THREE.MeshStandardMaterial({ color: 0xffeb3b, roughness: 0.3 });
+            const bar = new THREE.Mesh(barGeo, barMat);
+            bar.castShadow = true;
+            bar.receiveShadow = true;
+            beamGroup.add(bar);
+
+            // Create Number Texture for the beam
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffeb3b'; // Match beam color
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = 'black';
+            ctx.font = 'bold 30px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            // We need to map 10..1 | 1..10 across the width
+            // Map world coordinates to canvas coordinates
+            // Beam Width corresponds to canvas.width
+            const centerX = canvas.width / 2;
+            const pixelsPerUnit = canvas.width / BEAM_WIDTH;
+
+            for (let i = 1; i <= 10; i++) {
+                // Right side numbers
+                const rightX = centerX + (i * PEG_SPACING * pixelsPerUnit);
+                ctx.fillText(i.toString(), rightX, canvas.height/2);
+
+                // Left side numbers
+                const leftX = centerX - (i * PEG_SPACING * pixelsPerUnit);
+                ctx.fillText(i.toString(), leftX, canvas.height/2);
+            }
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const labelGeo = new THREE.PlaneGeometry(BEAM_WIDTH, 2.5);
+            const labelMat = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+            const labelMesh = new THREE.Mesh(labelGeo, labelMat);
+            labelMesh.position.z = 0.76; // Slightly in front of the box
+            beamGroup.add(labelMesh);
+
+            // Create Pegs (Visual & Functional Anchors)
+            const pegGeo = new THREE.CylinderGeometry(0.3, 0.3, 1.5, 8);
+            pegGeo.rotateX(Math.PI / 2);
+            const pegMat = new THREE.MeshStandardMaterial({ color: 0xfbc02d });
+
+            for (let i = 1; i <= 10; i++) {
+                // Right Peg
+                const pR = new THREE.Mesh(pegGeo, pegMat);
+                pR.position.set(i * PEG_SPACING, 0, 0.5);
+                pR.castShadow = true;
+                beamGroup.add(pR);
+
+                // Left Peg
+                const pL = new THREE.Mesh(pegGeo, pegMat);
+                pL.position.set(-i * PEG_SPACING, 0, 0.5);
+                pL.castShadow = true;
+                beamGroup.add(pL);
+            }
+        }
+
+        function createWeightsSupply() {
+            const geo = new THREE.BoxGeometry(2, 4, 0.5);
+            // Add a "hole" visual (white torus)
+            const holeGeo = new THREE.TorusGeometry(0.4, 0.1, 8, 16);
+            
+            const mat = new THREE.MeshStandardMaterial({ color: 0x0288d1 });
+            const holeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+
+            // Create a pool of weights
+            for (let i = 0; i < 20; i++) {
+                const group = new THREE.Group();
+                
+                const body = new THREE.Mesh(geo, mat);
+                body.position.y = -1; // Offset so origin is near the top (the hole)
+                body.castShadow = true;
+                
+                const hole = new THREE.Mesh(holeGeo, holeMat);
+                hole.position.y = 0.5;
+                hole.position.z = 0.26;
+
+                group.add(body);
+                group.add(hole);
+
+                // Add physics/game data
+                group.userData = { 
+                    isWeight: true, 
+                    originalPos: new THREE.Vector3(),
+                    onPeg: null // { side: 'left'|'right', val: 1-10 }
+                };
+
+                // Scatter them at the bottom
+                const x = (Math.random() - 0.5) * 40;
+                const y = -12 - (Math.random() * 5);
+                const z = 2 + (Math.random() * 2); // In front of base
+                
+                group.position.set(x, y, z);
+                // Random slight rotation for natural look
+                group.rotation.z = (Math.random() - 0.5) * 0.5;
+
+                // Save original pos for reset
+                group.userData.originalPos.set(x, y, z);
+
+                scene.add(group);
+                weights.push(group);
+            }
+        }
+
+        // --- Interaction Logic ---
+
+        function onPointerDown(event) {
+            // Update mouse coordinates
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            
+            // Check intersection with weights
+            // Note: raycaster hits meshes, but our weights are Groups.
+            // We need to find the parent Group of the intersected mesh.
+            const intersects = raycaster.intersectObjects(scene.children, true);
+
+            for (let hit of intersects) {
+                // Traverse up to find the weight group
+                let target = hit.object;
+                while (target.parent && target.parent !== scene && !target.userData.isWeight) {
+                    target = target.parent;
+                }
+
+                if (target.userData.isWeight) {
+                    startDrag(target, hit.point);
+                    return; // Only pick one
+                }
+            }
+        }
+
+        function startDrag(obj, hitPoint) {
+            heldWeight = obj;
+            
+            // If it was on a peg, remove it from balance calculation
+            if (obj.userData.onPeg) {
+                removeFromPeg(obj);
+            }
+
+            // Move to Scene coordinate space if it was attached to the beam
+            if (obj.parent === beamGroup) {
+                // Calculate world position
+                const worldPos = new THREE.Vector3();
+                obj.getWorldPosition(worldPos);
+                
+                scene.attach(obj); // helper to detach and re-attach preserving world transform
+            }
+
+            // Orient upright for dragging
+            obj.rotation.set(0, 0, 0);
+
+            // Calculate offset so we grab it where we clicked
+            // intersect point with drag plane
+            raycaster.setFromCamera(mouse, camera);
+            const planeIntersects = raycaster.intersectObject(dragPlane);
+            
+            if (planeIntersects.length > 0) {
+                // We want the object center to be offset from the mouse hit
+                // Actually, for this game, it feels better if the "hole" (origin) snaps to mouse
+                // So let's just snap origin to mouse for simplicity
+                dragOffset.set(0, 0, 0); 
+            }
+        }
+
+        function onPointerMove(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            if (!heldWeight) return;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObject(dragPlane);
+
+            if (intersects.length > 0) {
+                const point = intersects[0].point;
+                // Move object
+                heldWeight.position.copy(point).add(dragOffset);
+                heldWeight.position.z = 2; // Keep it on the front plane
+            }
+        }
+
+        function onPointerUp() {
+            if (!heldWeight) return;
+            
+            dropWeight(heldWeight);
+            heldWeight = null;
+        }
+
+        function dropWeight(obj) {
+            // Check distance to all Peg positions
+            // We need world positions of pegs because the beam might be tilted
+            
+            let closestDist = 2.5; // Snap threshold
+            let foundPeg = null; // { side, index, position }
+
+            const checkPeg = (side, index) => {
+                const localX = (side === 'right' ? 1 : -1) * index * PEG_SPACING;
+                const localPos = new THREE.Vector3(localX, 0, 0); // Peg pos on beam
+                
+                // Convert to world
+                const worldPos = localPos.clone().applyMatrix4(beamGroup.matrixWorld);
+                
+                // Distance to weight's "hole" (which is its origin)
+                const dist = worldPos.distanceTo(obj.position);
+                
+                if (dist < closestDist) {
+                    closestDist = dist;
+                    foundPeg = { side, index, localX };
+                }
+            };
+
+            for (let i = 1; i <= 10; i++) {
+                checkPeg('left', i);
+                checkPeg('right', i);
+            }
+
+            if (foundPeg) {
+                attachToPeg(obj, foundPeg);
+            } else {
+                returnToSupply(obj);
+            }
+        }
+
+        function attachToPeg(obj, pegInfo) {
+            // 1. Logic Update
+            obj.userData.onPeg = { side: pegInfo.side, val: pegInfo.index };
+            
+            // Update occupancy count
+            const arr = pegInfo.side === 'left' ? pegOccupancy.left : pegOccupancy.right;
+            arr[pegInfo.index]++;
+            const stackCount = arr[pegInfo.index];
+
+            // 2. Visual Update
+            beamGroup.attach(obj); // Switch parent to beam so it rotates with it
+            
+            // Set position relative to peg
+            // We offset Y slightly down or forward based on count so they stack visible
+            // Standard toy behavior: they hang below each other or front-to-back
+            // Let's do Front-to-Back layering + slight vertical jitter
+            
+            obj.position.set(pegInfo.localX, -0.5, 0.5 + (stackCount * 0.6));
+            obj.rotation.set(0, 0, 0); // Hang straight relative to beam (which is tilted)
+             // Actually, real weights hang straight DOWN (gravity), not relative to beam.
+             // But Three.js hierarchy rotates children.
+             // To simulate gravity hanging, we'd need to counter-rotate every frame.
+             // For simplicity in this V1, let's let them rotate with the beam (rigid).
+             // It looks okay for small angles.
+
+            calculateBalance();
+        }
+
+        function removeFromPeg(obj) {
+            const data = obj.userData.onPeg;
+            if (!data) return;
+
+            const arr = data.side === 'left' ? pegOccupancy.left : pegOccupancy.right;
+            arr[data.val]--;
+            
+            obj.userData.onPeg = null;
+            calculateBalance();
+        }
+
+        function returnToSupply(obj) {
+            scene.attach(obj);
+            
+            // Simple animate back logic or instant
+            // Let's randomize a bit at bottom
+            const x = (Math.random() - 0.5) * 40;
+            const y = -12 - (Math.random() * 5);
+            obj.position.set(x, y, 2 + Math.random());
+            obj.rotation.z = (Math.random() - 0.5) * 0.5;
+        }
+
+        // --- Physics Logic ---
+
+        function calculateBalance() {
+            let leftTorque = 0;
+            let rightTorque = 0;
+
+            // Iterate through weights to sum torque
+            // Or use occupancy arrays
+            for(let i=1; i<=10; i++) {
+                leftTorque += pegOccupancy.left[i] * i;
+                rightTorque += pegOccupancy.right[i] * i;
+            }
+
+            scaleState.leftTorque = leftTorque;
+            scaleState.rightTorque = rightTorque;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Beam Physics (Target Angle)
+            let targetRotation = 0;
+            const tiltAmount = 0.35; // radians (approx 20 degrees)
+
+            if (scaleState.leftTorque > scaleState.rightTorque) {
+                targetRotation = tiltAmount; // Positive Z is Left Down in this orientation?
+                // Standard: Right is +X. Left is -X.
+                // Rotate Z positive -> X goes up? No, Rotate Z + -> Left goes Up?
+                // Let's check Three.js Coord system.
+                // Right hand rule. Thumb Z (out). Fingers curl X to Y.
+                // +Rotation Z moves +X towards +Y. (Right side goes UP)
+                // So if Left is Heavy, Left goes DOWN, Right goes UP.
+                targetRotation = tiltAmount; 
+            } else if (scaleState.rightTorque > scaleState.leftTorque) {
+                targetRotation = -tiltAmount; // Right goes DOWN
+            } else {
+                targetRotation = 0;
+            }
+
+            // Smooth interpolation (Lerp)
+            beamGroup.rotation.z += (targetRotation - beamGroup.rotation.z) * 0.1;
+
+            // Counter-rotate weights to simulate gravity?
+            // This adds a really nice touch of realism.
+            // If the beam is at angle A, weights should be at -A relative to beam.
+            for(let w of weights) {
+                if (w.parent === beamGroup) {
+                    w.rotation.z = -beamGroup.rotation.z;
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function onResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        window.resetGame = function() {
+            // Remove all from pegs
+            pegOccupancy.left.fill(0);
+            pegOccupancy.right.fill(0);
+            scaleState.leftTorque = 0;
+            scaleState.rightTorque = 0;
+
+            // Move all weights back
+            for(let w of weights) {
+                if (w.parent === beamGroup) {
+                    scene.attach(w); // Detach from beam
+                }
+                w.userData.onPeg = null;
+                // Animate or teleport back to random supply pos
+                returnToSupply(w);
+            }
+        };
+
+    </script>
+</body>
+</html>
