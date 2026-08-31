@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Word Wizard - Laurel Ridge</title>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --bg-color: #1a1025;
+            --primary-light: #c084fc;
+            --primary-dark: #7e22ce;
+            --accent: #fbbf24;
+            --success: #4ade80;
+            --error: #f87171;
+            --key-bg: #2d1b4e;
+            --key-border: #4c1d95;
+            --key-active: #9333ea;
+        }
+
+        body {
+            font-family: 'Fredoka', sans-serif;
+            background: radial-gradient(circle at center, #2d1b4e 0%, var(--bg-color) 100%);
+            color: white;
+            min-height: 100vh;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            touch-action: manipulation;
+        }
+
+        #home-link {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            text-decoration: none;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+            padding: 10px 20px;
+            border-radius: 20px;
+            color: white;
+            font-weight: bold;
+            z-index: 100;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.2s;
+        }
+        #home-link:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(1.05);
+        }
+
+        .spell-container {
+            min-height: 120px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .word-display {
+            font-size: 4rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-shadow: 0 0 20px rgba(192, 132, 252, 0.5);
+            transition: all 0.1s;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 100%;
+        }
+
+        .letter {
+            display: inline-block;
+            color: rgba(255, 255, 255, 0.5);
+            transition: color 0.1s, transform 0.2s;
+        }
+
+        .letter.typed {
+            color: var(--success);
+            text-shadow: 0 0 15px var(--success);
+            transform: translateY(-5px);
+        }
+
+        .letter.current {
+            color: white;
+            border-bottom: 4px solid var(--accent);
+            text-shadow: 0 0 15px white;
+        }
+
+        .shake {
+            animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+            color: var(--error) !important;
+            text-shadow: 0 0 15px var(--error) !important;
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-2px, 0, 0); }
+            20%, 80% { transform: translate3d(4px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-6px, 0, 0); }
+            40%, 60% { transform: translate3d(6px, 0, 0); }
+        }
+
+        .magic-poof {
+            animation: poof 0.5s ease-out forwards;
+        }
+
+        @keyframes poof {
+            0% { transform: scale(1); opacity: 1; filter: brightness(1); }
+            50% { transform: scale(1.5); opacity: 0.8; filter: brightness(2); }
+            100% { transform: scale(2); opacity: 0; filter: blur(10px); }
+        }
+
+        .keyboard {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-width: 800px;
+            width: 100%;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 24px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .keyboard-row {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .key {
+            background: var(--key-bg);
+            border: 2px solid var(--key-border);
+            border-radius: 12px;
+            color: white;
+            font-size: 1.25rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            width: 45px;
+            height: 55px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.1s;
+            user-select: none;
+            box-shadow: 0 4px 0 var(--key-border);
+        }
+
+        @media (min-width: 768px) {
+            .key { width: 60px; height: 65px; font-size: 1.5rem; gap: 10px; }
+            .keyboard-row { gap: 10px; }
+        }
+
+        .key:active, .key.pressed {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 var(--key-border);
+            background: var(--key-active);
+        }
+
+        .key.target-key {
+            border-color: var(--accent);
+            box-shadow: 0 4px 0 var(--accent), 0 0 15px rgba(251, 191, 36, 0.4);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 4px 0 var(--accent), 0 0 0 0 rgba(251, 191, 36, 0.7); }
+            70% { box-shadow: 0 4px 0 var(--accent), 0 0 0 10px rgba(251, 191, 36, 0); }
+            100% { box-shadow: 0 4px 0 var(--accent), 0 0 0 0 rgba(251, 191, 36, 0); }
+        }
+
+        .spacebar {
+            width: 200px !important;
+        }
+        @media (min-width: 768px) {
+            .spacebar { width: 300px !important; }
+        }
+
+        .wizard-container {
+            font-size: 5rem;
+            margin-bottom: -1rem;
+            filter: drop-shadow(0 0 20px rgba(192, 132, 252, 0.3));
+            transition: transform 0.2s;
+        }
+        .wizard-cast {
+            transform: scale(1.2) rotate(-10deg);
+        }
+
+        .stat-badge {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body class="items-center justify-center pt-16 pb-8">
+
+    <a href="https://mlyard.github.io/auroras_playground/home.html" id="home-link">🏠 Home</a>
+
+    <!-- Stats Header -->
+    <div class="flex gap-4 md:gap-8 mb-6 z-10">
+        <div class="stat-badge text-purple-300">
+            Level: <span id="level-display" class="text-white">1</span>
+        </div>
+        <div class="stat-badge text-yellow-300">
+            Score: <span id="score-display" class="text-white">0</span>
+        </div>
+        <div class="stat-badge text-green-300">
+            Streak: <span id="streak-display" class="text-white">0</span>
+        </div>
+    </div>
+
+    <!-- Wizard Character -->
+    <div class="wizard-container" id="wizard">🧙‍♂️</div>
+
+    <!-- Main Word Display -->
+    <div class="spell-container w-full max-w-3xl px-4 z-10" id="spell-container">
+        <!-- Start screen text -->
+        <div id="start-screen" class="text-center cursor-pointer" onclick="startGame()">
+            <div class="text-3xl text-purple-300 mb-4 font-bold">Ready to cast some spells?</div>
+            <div class="px-8 py-3 bg-purple-600 hover:bg-purple-500 rounded-full text-xl font-bold inline-block shadow-lg shadow-purple-500/30 transition-all">
+                Press Space or Click to Start
+            </div>
+        </div>
+        <div id="word-display" class="word-display hidden"></div>
+    </div>
+
+    <div id="message-display" class="h-8 text-xl font-bold text-yellow-300 mb-6 z-10 text-center"></div>
+
+    <!-- Virtual Keyboard Container -->
+    <div id="keyboard-container" class="keyboard z-10 opacity-50 pointer-events-none transition-opacity duration-500">
+        <!-- Keyboard will be generated via JS -->
+    </div>
+
+    <!-- Modals -->
+    <div id="level-up-modal" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-50">
+        <div class="bg-indigo-900 border-2 border-purple-400 p-10 rounded-3xl text-center shadow-[0_0_50px_rgba(192,132,252,0.4)] max-w-md transform scale-0 transition-transform duration-300" id="level-up-content">
+            <div class="text-7xl mb-4">✨</div>
+            <h2 class="text-4xl font-bold text-white mb-2">Level Up!</h2>
+            <p class="text-purple-200 mb-6 text-xl" id="level-up-text">Your magic is growing stronger!</p>
+            <button onclick="closeLevelUp()" class="bg-purple-500 hover:bg-purple-400 text-white px-8 py-3 rounded-xl font-bold text-xl transition-all shadow-lg">Continue Casting</button>
+        </div>
+    </div>
+
+    <script>
+        // Game Vocabulary Database categorized by difficulty
+        const wordDictionary = {
+            1: ['a', 's', 'd', 'f', 'j', 'k', 'l', 'g', 'h', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', 'z', 'x', 'c', 'v', 'b', 'n', 'm', 'as', 'df', 'jk', 'gh', 'asdf', 'jkl'], 
+            2: ['at', 'it', 'on', 'in', 'up', 'to', 'go', 'do', 'be', 'we', 'me', 'he', 'cat', 'dog', 'bat', 'hat', 'run', 'sun', 'fun', 'hop', 'pig', 'cow', 'red', 'bug', 'cup', 'bus', 'box', 'fox', 'boy', 'toy', 'map', 'cap', 'top', 'pot', 'pan', 'man', 'can', 'van', 'dad', 'mom', 'big'], 
+            3: ['jump', 'play', 'book', 'star', 'moon', 'tree', 'bird', 'fish', 'frog', 'bear', 'milk', 'blue', 'pink', 'ship', 'boat', 'car', 'duck', 'cake', 'bake', 'make', 'take', 'park', 'dark', 'bark', 'cold', 'warm', 'snow', 'rain', 'wind', 'fast', 'slow', 'stop', 'time', 'clock'], 
+            4: ['apple', 'train', 'house', 'mouse', 'happy', 'smile', 'laugh', 'brave', 'smart', 'sweet', 'green', 'yellow', 'orange', 'purple', 'silver', 'flying', 'running', 'jumping', 'playing', 'singing', 'reading', 'writing', 'school', 'pencil', 'paper', 'wizard', 'magic', 'spell'], 
+            5: ['unicorn', 'dragon', 'potion', 'crystal', 'sparkle', 'mystery', 'enchant', 'journey', 'elephant', 'butterfly', 'adventure', 'dinosaur', 'astronaut', 'rainbow', 'computer', 'keyboard', 'beautiful', 'wonderful', 'fantastic', 'excellent', 'magical', 'sorcerer'],
+            6: ['i see a cat', 'the dog ran', 'we can play', 'it is fun', 'look at the bug', 'jump up high', 'the sun is hot', 'run to the tree', 'she has a book', 'he is my friend'],
+            7: ['the quick brown fox jumps', 'we saw a big frog', 'my favorite color is blue', 'the wizard casts a spell', 'magical dragons fly high', 'a unicorn has one horn', 'can you type this fast', 'learning to type is fun', 'she reads a new book', 'the little bird sings a song'],
+            8: ['Hello there!', 'What is your name?', 'The sun is shining.', 'I love to read books!', 'Watch out for the dragon!', 'Magic is everywhere.', 'A potion requires water.', 'She smiled and waved.', 'Typing is a great skill.', 'You are doing a great job!'],
+            9: ['The quick brown fox jumps over the lazy dog.', 'Wizards use wands to cast amazing magic spells.', 'An astronaut travels far into outer space.', 'Reading opens the door to wonderful adventures.', 'Typing quickly helps you write down your ideas.', 'We gathered shiny crystals in the dark cave.', 'Can you believe how fast you are typing now?', 'A beautiful rainbow appeared after the rain.', 'Practice makes perfect when learning new things.', 'The sleepy bear rested in the quiet forest.'],
+            10: ['Congratulations, you are now a Master Word Wizard!', 'The legendary dragon soared above the highest clouds.', 'Mysterious potions bubble in the enchanted cauldron.', 'With great power comes great typing responsibility!', 'Excellent job completing all the magical typing levels.']
+        };
+
+        const keyboardLayout = [
+            ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
+            ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
+            ['z', 'x', 'c', 'v', 'b', 'n', 'm', '.', ',', '!', '?']
+        ];
+
+        // Game State Variables
+        let currentWord = "";
+        let currentIndex = 0;
+        let score = 0;
+        let level = 1;
+        let streak = 0;
+        let isPlaying = false;
+        let keyElements = {}; // Map to store DOM references to keys
+
+        // Audio Context Setup
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx;
+
+        // DOM Elements
+        const wordDisplay = document.getElementById('word-display');
+        const startScreen = document.getElementById('start-screen');
+        const scoreDisplay = document.getElementById('score-display');
+        const levelDisplay = document.getElementById('level-display');
+        const streakDisplay = document.getElementById('streak-display');
+        const messageDisplay = document.getElementById('message-display');
+        const keyboardContainer = document.getElementById('keyboard-container');
+        const wizard = document.getElementById('wizard');
+
+        function buildKeyboard() {
+            keyboardLayout.forEach((row, rowIndex) => {
+                const rowDiv = document.createElement('div');
+                rowDiv.className = 'keyboard-row';
+                
+                row.forEach(char => {
+                    const keyBtn = document.createElement('div');
+                    keyBtn.className = 'key';
+                    keyBtn.id = `key-${char}`;
+                    keyBtn.textContent = char;
+                    
+                    // Touch/Click support for virtual keyboard
+                    keyBtn.addEventListener('mousedown', (e) => {
+                        e.preventDefault();
+                        if(isPlaying) handleInput(char);
+                    });
+                    keyBtn.addEventListener('touchstart', (e) => {
+                        e.preventDefault();
+                        if(isPlaying) handleInput(char);
+                    });
+
+                    rowDiv.appendChild(keyBtn);
+                    keyElements[char] = keyBtn;
+                });
+                
+                keyboardContainer.appendChild(rowDiv);
+            });
+
+            // Add Spacebar Row (used to start or occasionally between words if designed)
+            const spaceRow = document.createElement('div');
+            spaceRow.className = 'keyboard-row mt-2';
+            const spaceBtn = document.createElement('div');
+            spaceBtn.className = 'key spacebar';
+            spaceBtn.id = `key-space`;
+            spaceBtn.textContent = 'SPACE';
+            
+            spaceBtn.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                if(!isPlaying) startGame();
+                else handleInput(' ');
+            });
+            spaceBtn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                if(!isPlaying) startGame();
+                else handleInput(' ');
+            });
+
+            spaceRow.appendChild(spaceBtn);
+            keyboardContainer.appendChild(spaceRow);
+            keyElements[' '] = spaceBtn;
+        }
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new AudioContext();
+            }
+        }
+
+        function playSound(type) {
+            if (!audioCtx) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            const now = audioCtx.currentTime;
+
+            if (type === 'type') {
+                // Gentle tick/pop for correct letter
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(600, now);
+                osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                osc.start(now);
+                osc.stop(now + 0.1);
+            } else if (type === 'error') {
+                // Low thud for wrong letter
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.linearRampToValueAtTime(100, now + 0.2);
+                gain.gain.setValueAtTime(0.4, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+                osc.start(now);
+                osc.stop(now + 0.2);
+            } else if (type === 'spell') {
+                // Magical chime for completed word
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(440, now);
+                osc.frequency.exponentialRampToValueAtTime(880, now + 0.3);
+                
+                // Add a second oscillator for harmony
+                const osc2 = audioCtx.createOscillator();
+                osc2.type = 'sine';
+                osc2.frequency.setValueAtTime(660, now); // Perfect fifth
+                osc2.frequency.exponentialRampToValueAtTime(1320, now + 0.3);
+                osc2.connect(gain);
+                osc2.start(now);
+                osc2.stop(now + 0.4);
+
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+                
+                osc.start(now);
+                osc.stop(now + 0.4);
+            } else if (type === 'levelup') {
+                // Triumphant chord
+                [440, 554, 659, 880].forEach((freq, i) => { // A Major chord
+                    const o = audioCtx.createOscillator();
+                    const g = audioCtx.createGain();
+                    o.type = 'triangle';
+                    o.frequency.value = freq;
+                    o.connect(g);
+                    g.connect(audioCtx.destination);
+                    g.gain.setValueAtTime(0, now);
+                    g.gain.linearRampToValueAtTime(0.1, now + 0.1 + (i * 0.1));
+                    g.gain.exponentialRampToValueAtTime(0.01, now + 1);
+                    o.start(now);
+                    o.stop(now + 1);
+                });
+            }
+        }
+
+        function startGame() {
+            initAudio();
+            isPlaying = true;
+            score = 0;
+            level = 1;
+            streak = 0;
+            updateStats();
+            
+            startScreen.classList.add('hidden');
+            wordDisplay.classList.remove('hidden');
+            keyboardContainer.style.opacity = '1';
+            keyboardContainer.style.pointerEvents = 'auto';
+            
+            messageDisplay.textContent = "Cast the spell by typing!";
+            setTimeout(() => messageDisplay.textContent = "", 3000);
+            
+            nextWord();
+        }
+
+        function getWordsForLevel() {
+            let pool = [];
+            // Mix current level words with some previous level words for variety
+            for (let i = 1; i <= level; i++) {
+                if (wordDictionary[i]) {
+                    pool = pool.concat(wordDictionary[i]);
+                }
+            }
+            // Fallback to highest level if pool is empty
+            if (pool.length === 0) pool = wordDictionary[5];
+            return pool;
+        }
+
+        function nextWord() {
+            const words = getWordsForLevel();
+            let newWord = currentWord;
+            // Ensure we don't get the same word twice in a row if possible
+            while (newWord === currentWord && words.length > 1) {
+                newWord = words[Math.floor(Math.random() * words.length)];
+            }
+            currentWord = newWord;
+            currentIndex = 0;
+            renderWord();
+            highlightTargetKey();
+        }
+
+        function renderWord() {
+            wordDisplay.innerHTML = '';
+            wordDisplay.className = 'word-display'; // Reset animations
+            
+            // Adjust font size for sentences
+            if (currentWord.length > 35) {
+                wordDisplay.style.fontSize = '2rem';
+            } else if (currentWord.length > 15) {
+                wordDisplay.style.fontSize = '3rem';
+            } else {
+                wordDisplay.style.fontSize = '4rem';
+            }
+            
+            for (let i = 0; i < currentWord.length; i++) {
+                const span = document.createElement('span');
+                // Ensure spaces are visible for the underline cursor
+                span.textContent = currentWord[i] === ' ' ? '\u00A0' : currentWord[i];
+                span.className = 'letter';
+                if (i < currentIndex) {
+                    span.classList.add('typed');
+                } else if (i === currentIndex) {
+                    span.classList.add('current');
+                }
+                wordDisplay.appendChild(span);
+            }
+        }
+
+        function highlightTargetKey() {
+            // Remove highlight from all keys
+            Object.values(keyElements).forEach(el => el.classList.remove('target-key'));
+            
+            // Highlight current target
+            if (currentIndex < currentWord.length) {
+                const targetChar = currentWord[currentIndex].toLowerCase();
+                if (keyElements[targetChar]) {
+                    keyElements[targetChar].classList.add('target-key');
+                }
+            }
+        }
+
+        function animateKeypress(char) {
+            const key = keyElements[char.toLowerCase()];
+            if (key) {
+                key.classList.add('pressed');
+                setTimeout(() => key.classList.remove('pressed'), 150);
+            }
+        }
+
+        function handleInput(char) {
+            if (!isPlaying) return;
+            
+            char = char.toLowerCase();
+            animateKeypress(char);
+
+            const targetChar = currentWord[currentIndex].toLowerCase();
+
+            if (char === targetChar) {
+                // Correct letter
+                playSound('type');
+                currentIndex++;
+                renderWord();
+                
+                // Animate wizard slightly
+                wizard.style.transform = 'scale(1.1)';
+                setTimeout(() => wizard.style.transform = 'scale(1)', 100);
+
+                if (currentIndex === currentWord.length) {
+                    wordComplete();
+                } else {
+                    highlightTargetKey();
+                }
+            } else {
+                // Wrong letter
+                // Prevent error sound/shake if pressing modifier keys or space randomly
+                if (/^[a-z0-9\s.,!?]$/.test(char)) {
+                    playSound('error');
+                    streak = 0;
+                    updateStats();
+                    
+                    // Visual error feedback
+                    wordDisplay.classList.remove('shake');
+                    void wordDisplay.offsetWidth; // Trigger reflow
+                    wordDisplay.classList.add('shake');
+                }
+            }
+        }
+
+        function wordComplete() {
+            playSound('spell');
+            
+            // Wizard cast animation
+            wizard.classList.add('wizard-cast');
+            setTimeout(() => wizard.classList.remove('wizard-cast'), 300);
+
+            // Magic poof animation on word
+            wordDisplay.classList.add('magic-poof');
+            
+            // Calculate score
+            const basePoints = currentWord.length * 10;
+            const streakBonus = Math.floor(streak / 5) * 5;
+            score += basePoints + streakBonus;
+            streak++;
+            updateStats();
+
+            // Check level up (every 50-100 points roughly, scaling up)
+            const nextLevelThreshold = level * level * 100; 
+            const maxLevel = Object.keys(wordDictionary).length;
+            
+            setTimeout(() => {
+                if (score >= nextLevelThreshold && level < maxLevel) {
+                    levelUp();
+                } else {
+                    nextWord();
+                }
+            }, 500); // Wait for poof animation
+        }
+
+        function updateStats() {
+            scoreDisplay.textContent = score;
+            streakDisplay.textContent = streak;
+            levelDisplay.textContent = level;
+            
+            // Pulse streak if high
+            if (streak > 0 && streak % 5 === 0) {
+                streakDisplay.parentElement.classList.add('scale-110', 'text-yellow-400');
+                setTimeout(() => streakDisplay.parentElement.classList.remove('scale-110', 'text-yellow-400'), 300);
+            }
+        }
+
+        function levelUp() {
+            isPlaying = false;
+            level++;
+            playSound('levelup');
+            updateStats();
+            
+            const modal = document.getElementById('level-up-modal');
+            const content = document.getElementById('level-up-content');
+            
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            
+            // Small delay for CSS transition to kick in
+            setTimeout(() => {
+                content.classList.remove('scale-0');
+                content.classList.add('scale-100');
+            }, 10);
+        }
+
+        function closeLevelUp() {
+            const modal = document.getElementById('level-up-modal');
+            const content = document.getElementById('level-up-content');
+            
+            content.classList.remove('scale-100');
+            content.classList.add('scale-0');
+            
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                isPlaying = true;
+                nextWord();
+            }, 300);
+        }
+
+        // Global Keyboard Event Listener
+        window.addEventListener('keydown', (e) => {
+            // Prevent default scrolling for spacebar always
+            if (e.code === 'Space') {
+                e.preventDefault();
+            }
+
+            // Start game with space if not playing
+            if (e.code === 'Space' && !isPlaying) {
+                startGame();
+                return;
+            }
+
+            // Handle letter, space, and punctuation input
+            if (isPlaying && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                handleInput(e.key);
+            }
+        });
+
+        // Initialization
+        buildKeyboard();
+
+    </script>
+</body>
+</html>
